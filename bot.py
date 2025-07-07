@@ -18,10 +18,11 @@ app = Client("RenameBot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 async def start(client, message):
     user_id = message.from_user.id
     s = get_settings(user_id)
+
     markup = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(f"Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss"),
-            InlineKeyboardButton(f"Count: {s.get('count')}", callback_data="noop")
+            InlineKeyboardButton(f"Count: {s.get('count', 3)}", callback_data="noop")
         ],
         [
             InlineKeyboardButton("➕", callback_data="inc_count"),
@@ -29,7 +30,7 @@ async def start(client, message):
         ],
         [
             InlineKeyboardButton(f"Prefix: {'✅' if s.get('prefix') else '❌'}", callback_data="toggle_prefix"),
-            InlineKeyboardButton(f"Type: {s.get('rename_type')}", callback_data="toggle_type")
+            InlineKeyboardButton(f"Type: {s.get('rename_type', 'doc')}", callback_data="toggle_type")
         ],
         [
             InlineKeyboardButton("Style", callback_data="style_menu"),
@@ -68,27 +69,30 @@ async def cb_settings(client, cb):
     elif cb.data == "style_menu":
         styles = ["bold", "italic", "code", "mono", "plain"]
         style_buttons = [InlineKeyboardButton(st, callback_data=f"set_style:{st}") for st in styles]
-        await cb.message.edit("🎨 Choose Caption Style:", reply_markup=InlineKeyboardMarkup(
-            [style_buttons[i:i+2] for i in range(0, len(style_buttons), 2)]
-        ))
+        style_markup = InlineKeyboardMarkup([style_buttons[i:i+2] for i in range(0, len(style_buttons), 2)])
+        await cb.message.edit("🎨 Choose Caption Style:", reply_markup=style_markup)
         await cb.answer()
         return
-    elif cb.data.startswith("set_style"):
+    elif cb.data.startswith("set_style:"):
         _, style = cb.data.split(":")
         update_settings(user_id, "caption_style", style)
         await cb.message.delete()
         return
     elif cb.data == "thumb_menu":
-        btns = [
+        thumb_markup = InlineKeyboardMarkup([
             [InlineKeyboardButton("📌 Set Thumb (send photo)", callback_data="noop")],
             [InlineKeyboardButton("🗑️ Remove Thumbnail", callback_data="remove_thumb")]
-        ]
-        await cb.message.edit("🖼️ Thumbnail Options:", reply_markup=InlineKeyboardMarkup(btns))
+        ])
+        await cb.message.edit("🖼️ Thumbnail Options:", reply_markup=thumb_markup)
         await cb.answer()
         return
     elif cb.data == "remove_thumb":
         clear_thumbnail(user_id)
+        await cb.answer("✅ Thumbnail removed.")
+        return await start(client, cb.message)
 
+    # 🔁 Refresh UI
+    await cb.answer("✅ Updated")
     return await start(client, cb.message)
 
 # 📸 Set Thumbnail
