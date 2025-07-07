@@ -3,44 +3,124 @@ import time
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-
 from db import (
     get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
-    update_caption, get_caption, get_admins, is_admin_user, add_task, remove_task, get_user_tasks
+    update_caption, get_caption, get_admins, is_admin_user,
+    add_task, get_user_tasks, remove_task, save_file, get_saved_file
 )
 from utils import progress_bar, take_screenshots, cleanup
 
 API_ID = 10811400
 API_HASH = "191bf5ae7a6c39771e7b13cf4ffd1279"
 BOT_TOKEN = "7097361755:AAHUd9LI4_JoAj57WfGbYVhG0msao8d04ck"
-ADMIN =  6469754522
+ADMIN = get_admins()
 
 app = Client("RenameBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-
-user_queues = {}
+QUEUE = asyncio.Semaphore(4)
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
+    await message.reply("👋 Welcome to Rename Bot!\nUse /rename <newname> by replying to a file.")
+
+@app.on_message(filters.photo & filters.private)
+async def save_thumb(client, message):
     user_id = message.from_user.id
-    s = get_settings(user_id)
-    markup = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss"),
-            InlineKeyboardButton(f"🧮 Count: {s.get('count')}", callback_data="noop")
-        ],
-        [
-            InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
-            InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")
-        ],
-        [
-            InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
-        ],
-        [
-            InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
-            InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-        ]
-    ])
-    await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
+    set_thumbnail(user_id, message.photo.file_id)
+    await message.reply("✅ Thumbnail saved.")
+
+@app.on_message(filters.command("rename"))
+async def rename_file(client, message: Message):
+    user_id = message.from_user.id
+    async with QUEUE:
+        settings = get_settings(user_id)
+        rename_type = settings.get("rename_type", "doc")
+        prefix_on = settings.get("prefix_enabled", True)
+        prefix_text = settings.get("prefix_text", "")
+        caption_custom = get_caption(user_id)
+
+        if len(message.command) >= 2:
+            new_name = message.text.split(None, 1)[1]
+        elif message.reply_to_message and message.reply_to_message.document:
+            return await message.reply("❗ Provide a new filename after /rename")
+        else:
+            return await message.reply("❗ Reply to a document or provide filename.")
+
+        if prefix_on:
+            new_name = f"{prefix_text} {new_name}"
+
+        # Save Task
+        add_task(user_id, new_name)
+
+        # Download thumbnail (if set)
+        thumb_id = get_thumbnail(user_id)
+        thumb_path = None
+        if thumb_id:
+            try:
+                thumb_path = await client.download_media(thumb_id, file_name=f"thumb_{user_id}.jpg")
+            except:
+                thumb_path = None
+
+        task = {
+            "message": await message.reply("📥 Starting download..."),
+            "start_time": time.time(),
+            "action": "📥 Downloading"
+        }
+
+        file_path = await message.reply_to_message.download(
+            file_name=new_name,
+            progress=progress_bar,
+            progress_args=(task,)
+        )
+        await task["message"].edit("✅ Download complete.")
+
+        caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
+        task = {
+            "message": await message.reply("📤 Starting upload..."),
+            "start_time": time.time(),
+            "action": "📤 Uploading"
+        }
+
+        try:
+            if rename_type == "video":
+                await message.reply_video(file_path, caption=caption, thumb=thumb_path,
+                                          progress=progress_bar, progress_args=(task,))
+            else:
+                await message.reply_document(file_path, caption=caption, thumb=thumb_path,
+                                             progress=progress_bar, progress_args=(task,))
+            await task["message"].edit("✅ Upload complete.")
+        except Exception as e:
+            await task["message"].edit(f"❌ Upload failed: {e}")
+            return
+
+        # Save file info for retrieval
+        save_file(user_id, new_name, file_path)
+
+        # Screenshots
+        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
+            ss_dir = f"ss_{user_id}"
+            os.makedirs(ss_dir, exist_ok=True)
+            for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
+                await message.reply_photo(ss)
+            cleanup(ss_dir)
+
+        # Cleanup
+        cleanup(file_path)
+        if thumb_path and os.path.exists(thumb_path):
+            os.remove(thumb_path)
+
+
+
+@app.on_message(filters.command("getfile"))
+async def get_file(client, message):
+    uid = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: /getfile <filename>")
+    filename = message.text.split(None, 1)[1].strip()
+    file_path = get_saved_file(uid, filename)
+    if file_path and os.path.exists(file_path):
+        await message.reply_document(file_path)
+    else:
+        await message.reply("❗ File not found or already deleted.")
 
 @app.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
@@ -88,88 +168,31 @@ async def remove_user_task(client, message):
     except Exception as e:
         await message.reply(f"❗ Error: {e}")
 
-@app.on_message(filters.command("rename"))
-async def rename_file(client, message: Message):
+
+@app.on_message(filters.command("settings"))
+async def setting(client, message):
     user_id = message.from_user.id
-    queue = user_queues.setdefault(user_id, asyncio.Semaphore(4))
+    s = get_settings(user_id)
+    markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss"),
+            InlineKeyboardButton(f"🧮 Count: {s.get('count')}", callback_data="noop")
+        ],
+        [
+            InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+            InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")
+        ],
+        [
+            InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
+        ],
+        [
+            InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+            InlineKeyboardButton("📄 Caption", callback_data="show_caption")
+        ]
+    ])
+    await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
 
-    async with queue:
-        settings = get_settings(user_id)
-        rename_type = settings.get("rename_type", "doc")
-        prefix_on = settings.get("prefix_enabled", True)
-        prefix_text = settings.get("prefix_text", "")
-        caption_custom = get_caption(user_id)
-
-        if len(message.command) >= 2:
-            new_name = message.text.split(None, 1)[1]
-        elif message.reply_to_message and message.reply_to_message.document:
-            return await message.reply("❗ Provide a new filename after /rename")
-        else:
-            return await message.reply("❗ Reply to a document or provide filename.")
-
-        if prefix_on:
-            new_name = f"{prefix_text} {new_name}"
-
-        add_task(user_id, new_name)
-
-        thumb_id = get_thumbnail(user_id)
-        thumb_path = None
-        if thumb_id:
-            try:
-                thumb_path = await client.download_media(thumb_id, file_name=f"thumb_{user_id}.jpg")
-            except:
-                thumb_path = None
-
-        task = {
-            "message": await message.reply("📥 Starting download..."),
-            "start_time": time.time(),
-            "action": "📥 Downloading"
-        }
-
-        file_path = await message.reply_to_message.download(
-            file_name=new_name,
-            progress=progress_bar,
-            progress_args=(task,)
-        )
-
-        await task["message"].edit("✅ Download completed")
-
-        cap = caption_custom.replace("{filename}", new_name) if caption_custom else f"✅ File: {new_name}"
-
-        task = {
-            "message": await message.reply("📤 Starting upload..."),
-            "start_time": time.time(),
-            "action": "📤 Uploading"
-        }
-
-        try:
-            if rename_type == "video":
-                await message.reply_video(
-                    file_path, caption=cap, thumb=thumb_path,
-                    progress=progress_bar, progress_args=(task,)
-                )
-            else:
-                await message.reply_document(
-                    file_path, caption=cap, thumb=thumb_path,
-                    progress=progress_bar, progress_args=(task,)
-                )
-            await task["message"].edit("✅ Upload completed")
-        except Exception as e:
-            await task["message"].edit(f"❗ Upload failed: `{e}`")
-            return
-
-        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov", ".webm")):
-            ss_dir = f"ss_{user_id}"
-            os.makedirs(ss_dir, exist_ok=True)
-            for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
-                await message.reply_photo(ss)
-            cleanup(ss_dir)
-
-        cleanup(file_path)
-        if thumb_path and os.path.exists(thumb_path):
-            os.remove(thumb_path)
-            
-
+        
 @app.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
     user_id = message.from_user.id
