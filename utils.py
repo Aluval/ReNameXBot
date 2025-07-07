@@ -78,12 +78,3 @@ def cleanup(path: str):
     elif os.path.isfile(path):
         os.remove(path)
 
-def caption_styles(style: str, text: str) -> str:
-    if style == "bold":
-        return f"*{text}*"
-    elif style == "italic":
-        return f"_{text}_"
-    elif style == "code":
-        return f"`{text}`"
-    else:
-        return text
