@@ -61,7 +61,7 @@ async def rename_file(client, message: Message):
         prefix_text = settings.get("prefix_text", "")
         caption_custom = get_caption(user_id)
 
-        # Get filename
+        # Get new filename
         if len(message.command) >= 2:
             new_name = message.text.split(None, 1)[1]
         elif message.reply_to_message and message.reply_to_message.document:
@@ -72,7 +72,7 @@ async def rename_file(client, message: Message):
         if prefix_on:
             new_name = f"{prefix_text} {new_name}"
 
-        # Download thumbnail (if exists)
+        # Download thumbnail (if set)
         thumb_id = get_thumbnail(user_id)
         thumb_path = None
         if thumb_id:
@@ -81,19 +81,32 @@ async def rename_file(client, message: Message):
             except:
                 thumb_path = None
 
-        # Download file
-        task = {"message": await message.reply("📥 Starting download..."), "start_time": time.time(), "action": "📥 Downloading"}
+        # Start download
+        task = {
+            "message": await message.reply("📥 Starting download..."),
+            "start_time": time.time(),
+            "action": "📥 Downloading"
+        }
+
         file_path = await message.reply_to_message.download(
             file_name=new_name,
             progress=progress_bar,
             progress_args=(task,)
         )
 
+        # Final download complete message
+        await task["message"].edit("✅ Download completed")
+
         # Generate caption
         cap = caption_custom if caption_custom else caption_styles(caption_style, f"✅ File: `{new_name}`")
 
-        # Upload
-        task = {"message": await message.reply("📤 Uploading..."), "start_time": time.time(), "action": "📤 Uploading"}
+        # Start upload
+        task = {
+            "message": await message.reply("📤 Starting upload..."),
+            "start_time": time.time(),
+            "action": "📤 Uploading"
+        }
+
         try:
             if rename_type == "video":
                 await message.reply_video(
@@ -105,10 +118,15 @@ async def rename_file(client, message: Message):
                     file_path, caption=cap, thumb=thumb_path,
                     progress=progress_bar, progress_args=(task,)
                 )
-        except Exception as e:
-            return await message.reply(f"❗ Upload failed: `{e}`")
 
-        # Screenshots (optional)
+            # Final upload complete message
+            await task["message"].edit("✅ Upload completed")
+
+        except Exception as e:
+            await task["message"].edit(f"❗ Upload failed: `{e}`")
+            return
+
+        # Screenshots
         if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov", ".webm")):
             ss_dir = f"ss_{user_id}"
             os.makedirs(ss_dir, exist_ok=True)
