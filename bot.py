@@ -5,9 +5,9 @@ from db import get_settings, update_settings
 from utils import progress_bar, take_screenshots, cleanup
 
 # 🧠 Bot Configuration
-BOT_TOKEN = "YOUR_BOT_TOKEN"
-API_ID = 123456
-API_HASH = "YOUR_API_HASH"
+BOT_TOKEN = "7097361755:AAHUd9LI4_JoAj57WfGbYVhG0msao8d04ck"
+API_ID = 10811400
+API_HASH = "191bf5ae7a6c39771e7b13cf4ffd1279"
 
 app = Client("RenameBot", bot_token=BOT_TOKEN, api_id=API_ID, api_hash=API_HASH)
 
