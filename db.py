@@ -1,22 +1,20 @@
-
 from pymongo import MongoClient
 
 MONGO_URL = "mongodb+srv://HARSHA24:HARSHA24@cluster0.sxaj8up.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(MONGO_URL)
+
 db = client["rename_bot"]
 settings_col = db["settings"]
 thumbs_col = db["thumbnails"]
 captions_col = db["captions"]
 admin_col = db["admins"]
-limits_col = db["limits"]
 
 DEFAULT_SETTINGS = {
     "screenshot": True,
     "count": 3,
     "rename_type": "doc",
     "prefix_enabled": True,
-    "prefix_text": "@sunriseseditsoffical6 -",
-    "caption_style": "bold"
+    "prefix_text": "@sunriseseditsoffical6 -"
 }
 
 def get_settings(user_id):
@@ -51,22 +49,3 @@ def get_admins():
 
 def is_admin_user(user_id):
     return admin_col.find_one({"_id": user_id}) is not None
-
-# Optional limit control
-def get_max_concurrent():
-    data = limits_col.find_one({"_id": "limit"})
-    return data.get("count", 4) if data else 4
-
-def increase_limit():
-    data = limits_col.find_one({"_id": "limit"})
-    current = data.get("count", 4) if data else 4
-    new = current + 1
-    limits_col.update_one({"_id": "limit"}, {"$set": {"count": new}}, upsert=True)
-    return new
-
-def decrease_limit():
-    data = limits_col.find_one({"_id": "limit"})
-    current = data.get("count", 4) if data else 4
-    new = max(1, current - 1)
-    limits_col.update_one({"_id": "limit"}, {"$set": {"count": new}}, upsert=True)
-    return new
