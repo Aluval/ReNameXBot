@@ -1,10 +1,47 @@
 import os
-import shutil
-import subprocess
 import time
+import subprocess
 
-# ✨ Format caption styles
-def caption_styles(style: str, text: str) -> str:
+def progress_bar(current, total, task):
+    now = time.time()
+    elapsed = now - task["start_time"]
+    speed = current / elapsed if elapsed > 0 else 0
+    eta = (total - current) / speed if speed > 0 else 0
+    percent = (current / total) * 100
+
+    bar = f"{task['action']}... {percent:.0f}%\nSpeed: {speed/1024:.2f} KB/s\nETA: {int(eta)}s"
+    try:
+        task["message"].edit_text(bar)
+    except:
+        pass
+
+def take_screenshots(file_path, output_dir, count=3):
+    duration_cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{file_path}"'
+    try:
+        duration = float(subprocess.check_output(duration_cmd, shell=True).decode().strip())
+    except:
+        duration = 0
+    interval = duration // (count + 1)
+    output_files = []
+
+    for i in range(1, count + 1):
+        timestamp = int(interval * i)
+        out_file = os.path.join(output_dir, f"ss_{i}.jpg")
+        cmd = f'ffmpeg -ss {timestamp} -i "{file_path}" -frames:v 1 "{out_file}" -q:v 2 -y'
+        subprocess.call(cmd, shell=True)
+        if os.path.exists(out_file):
+            output_files.append(out_file)
+    return output_files
+
+def cleanup(path):
+    if os.path.isdir(path):
+        for f in os.listdir(path):
+            os.remove(os.path.join(path, f))
+        os.rmdir(path)
+    elif os.path.isfile(path):
+        os.remove(path)
+
+def caption_styles(style, text):
     if style == "bold":
         return f"**{text}**"
     elif style == "italic":
@@ -13,55 +50,5 @@ def caption_styles(style: str, text: str) -> str:
         return f"`{text}`"
     elif style == "mono":
         return f"```{text}```"
-    elif style == "plain":
+    else:
         return text
-    return text
-
-# ⏳ Progress Bar
-async def progress_bar(current, total, task):
-    percent = int(current * 100 / total)
-    speed = current / (time.time() - task["start_time"] + 1)
-    eta = (total - current) / speed if speed else 0
-    try:
-        await task["message"].edit(
-            f"{task['action']}... {percent}%\n"
-            f"Speed: {speed / 1024:.2f} KB/s\n"
-            f"ETA: {int(eta)}s"
-        )
-    except:
-        pass
-
-# 🎞️ Take Screenshots from a Video
-def take_screenshots(video_path, output_dir, count=3):
-    duration_cmd = [
-        'ffprobe', '-v', 'error', '-show_entries',
-        'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', video_path
-    ]
-    try:
-        duration = float(subprocess.check_output(duration_cmd))
-    except:
-        duration = 60
-
-    interval = duration / (count + 1)
-    output_paths = []
-
-    for i in range(count):
-        timestamp = int((i + 1) * interval)
-        output_path = os.path.join(output_dir, f"ss_{i + 1}.jpg")
-        cmd = [
-            'ffmpeg', '-ss', str(timestamp), '-i', video_path,
-            '-frames:v', '1', '-q:v', '2', output_path
-        ]
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if os.path.exists(output_path):
-            output_paths.append(output_path)
-
-    return output_paths
-
-# 🧹 Cleanup Temporary Files/Folders
-def cleanup(*paths):
-    for path in paths:
-        if os.path.isdir(path):
-            shutil.rmtree(path, ignore_errors=True)
-        elif os.path.exists(path):
-            os.remove(path)
