@@ -18,6 +18,7 @@ def get_settings(user_id: int) -> dict:
             "prefix_text": "@sunriseseditsoffical6 -",
             "rename_type": "doc",
             "caption_style": "bold",
+            "caption_view": False,
             "thumbnail": None
         }
         col.insert_one(default)
