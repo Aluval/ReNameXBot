@@ -8,7 +8,9 @@ settings_col = db["settings"]
 thumbs_col = db["thumbnails"]
 captions_col = db["captions"]
 admin_col = db["admins"]
+tasks_col = db["tasks"]
 
+# ✅ Default Settings (style & limit removed)
 DEFAULT_SETTINGS = {
     "screenshot": True,
     "count": 3,
@@ -17,6 +19,7 @@ DEFAULT_SETTINGS = {
     "prefix_text": "@sunriseseditsoffical6 -"
 }
 
+# ✅ Settings Functions
 def get_settings(user_id):
     data = settings_col.find_one({"_id": user_id})
     if not data:
@@ -27,6 +30,7 @@ def get_settings(user_id):
 def update_settings(user_id, key, value):
     settings_col.update_one({"_id": user_id}, {"$set": {key: value}}, upsert=True)
 
+# ✅ Thumbnail Functions
 def set_thumbnail(user_id, file_id):
     thumbs_col.update_one({"_id": user_id}, {"$set": {"file_id": file_id}}, upsert=True)
 
@@ -37,6 +41,7 @@ def get_thumbnail(user_id):
 def clear_thumbnail(user_id):
     thumbs_col.delete_one({"_id": user_id})
 
+# ✅ Caption Functions
 def update_caption(user_id, text):
     captions_col.update_one({"_id": user_id}, {"$set": {"caption": text}}, upsert=True)
 
@@ -44,8 +49,25 @@ def get_caption(user_id):
     data = captions_col.find_one({"_id": user_id})
     return data["caption"] if data else None
 
+# ✅ Admin Control
 def get_admins():
     return [admin["_id"] for admin in admin_col.find()]
 
 def is_admin_user(user_id):
     return admin_col.find_one({"_id": user_id}) is not None
+
+# ✅ Task Queue
+def add_task(user_id, task):
+    tasks_col.update_one({"_id": user_id}, {"$push": {"tasks": task}}, upsert=True)
+
+def get_user_tasks(user_id):
+    doc = tasks_col.find_one({"_id": user_id})
+    return doc["tasks"] if doc and "tasks" in doc else []
+
+def remove_task(user_id, index):
+    tasks = get_user_tasks(user_id)
+    if 0 <= index < len(tasks):
+        del tasks[index]
+        tasks_col.update_one({"_id": user_id}, {"$set": {"tasks": tasks}})
+        return True
+    return False
