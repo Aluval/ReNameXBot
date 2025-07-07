@@ -109,12 +109,12 @@ async def rename_file(client, message: Message):
         try:
             if rename_type == "video":
                 await message.reply_video(
-                    file_path, caption=cap, thumb=thumb_path, parse_mode="Markdown",
+                    file_path, caption=cap, thumb=thumb_path,
                     progress=progress_bar, progress_args=(task,)
                 )
             else:
                 await message.reply_document(
-                    file_path, caption=cap, thumb=thumb_path, parse_mode="Markdown",
+                    file_path, caption=cap, thumb=thumb_path,
                     progress=progress_bar, progress_args=(task,)
                 )
 
