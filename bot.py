@@ -13,6 +13,7 @@ from utils import progress_bar, take_screenshots, cleanup
 API_ID = 10811400
 API_HASH = "191bf5ae7a6c39771e7b13cf4ffd1279"
 BOT_TOKEN = "7097361755:AAHUd9LI4_JoAj57WfGbYVhG0msao8d04ck"
+ADMIN =  6469754522
 
 app = Client("RenameBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -73,7 +74,7 @@ async def paginate_tasks(client, cb):
     await list_tasks(client, cb.message)
     await cb.answer()
 
-@app.on_message(filters.command("removetask") & filters.user(get_admins()))
+@app.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_user_task(client, message):
     if len(message.command) < 3:
         return await message.reply("❗ Usage: /removetask <user_id> <task_index>")
