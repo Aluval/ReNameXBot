@@ -3,17 +3,21 @@ import shutil
 import subprocess
 import time
 
-# ⏳ Real-time Animated Progress Bar
-async def progress_bar(current, total, message, action):
+# Fixed ⏳ Real-time Progress Bar
+async def progress_bar(current, total, task):
     percent = int(current * 100 / total)
-    speed = current / (time.time() - message.date.timestamp() + 1)
+    speed = current / (time.time() - task["start_time"] + 1)
     eta = (total - current) / speed if speed else 0
     try:
-        await message.edit(f"{action}... {percent}%\nSpeed: {speed/1024:.2f} KB/s\nETA: {int(eta)}s")
+        await task["message"].edit(
+            f"{task['action']}... {percent}%\n"
+            f"Speed: {speed / 1024:.2f} KB/s\n"
+            f"ETA: {int(eta)}s"
+        )
     except:
         pass
 
-# 🎞️ High-performance Screenshot Taker
+# 🎞️ Screenshot Extraction
 def take_screenshots(video_path, output_dir, count=3):
     duration_cmd = [
         'ffprobe', '-v', 'error', '-show_entries',
@@ -25,17 +29,18 @@ def take_screenshots(video_path, output_dir, count=3):
 
     for i in range(count):
         timestamp = int((i + 1) * interval)
-        output_path = os.path.join(output_dir, f"ss_{i+1}.jpg")
+        output_path = os.path.join(output_dir, f"ss_{i + 1}.jpg")
         cmd = [
             'ffmpeg', '-ss', str(timestamp), '-i', video_path,
             '-frames:v', '1', '-q:v', '2', output_path
         ]
         subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        output_paths.append(output_path)
+        if os.path.exists(output_path):
+            output_paths.append(output_path)
 
     return output_paths
 
-# 🧹 Auto Cleanup
+# 🧹 Cleanup
 def cleanup(*paths):
     for path in paths:
         if os.path.isdir(path):
