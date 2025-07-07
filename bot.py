@@ -185,7 +185,7 @@ async def cb_settings(client, cb):
         await cb.answer("✅ Thumbnail removed")
         return await start(client, cb.message)
     elif cb.data == "style_menu":
-        styles = ["bold", "italic", "code", "mono", "plain"]
+        styles = ["bold", "italic", "code"]
         style_buttons = [InlineKeyboardButton(st.title(), callback_data=f"set_style:{st}") for st in styles]
         await cb.message.edit("🎨 Choose Caption Style:", reply_markup=InlineKeyboardMarkup([
             style_buttons[i:i + 2] for i in range(0, len(style_buttons), 2)
