@@ -3,7 +3,21 @@ import shutil
 import subprocess
 import time
 
-# Fixed ⏳ Real-time Progress Bar
+# ✨ Format caption styles
+def caption_styles(style: str, text: str) -> str:
+    if style == "bold":
+        return f"**{text}**"
+    elif style == "italic":
+        return f"__{text}__"
+    elif style == "code":
+        return f"`{text}`"
+    elif style == "mono":
+        return f"```{text}```"
+    elif style == "plain":
+        return text
+    return text
+
+# ⏳ Progress Bar
 async def progress_bar(current, total, task):
     percent = int(current * 100 / total)
     speed = current / (time.time() - task["start_time"] + 1)
@@ -17,13 +31,17 @@ async def progress_bar(current, total, task):
     except:
         pass
 
-# 🎞️ Screenshot Extraction
+# 🎞️ Take Screenshots from a Video
 def take_screenshots(video_path, output_dir, count=3):
     duration_cmd = [
         'ffprobe', '-v', 'error', '-show_entries',
         'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', video_path
     ]
-    duration = float(subprocess.check_output(duration_cmd))
+    try:
+        duration = float(subprocess.check_output(duration_cmd))
+    except:
+        duration = 60
+
     interval = duration / (count + 1)
     output_paths = []
 
@@ -40,7 +58,7 @@ def take_screenshots(video_path, output_dir, count=3):
 
     return output_paths
 
-# 🧹 Cleanup
+# 🧹 Cleanup Temporary Files/Folders
 def cleanup(*paths):
     for path in paths:
         if os.path.isdir(path):
