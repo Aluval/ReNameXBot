@@ -1,14 +1,14 @@
 import os
 import time
-import subprocess
-from pathlib import Path
-from typing import List
+from typing import List, Optional, Dict
 
-def progress_bar(current: int, total: int, task: dict):
+def progress_bar(current: int, total: int, task: Dict):
     now = time.time()
-    elapsed = now - task["start_time"]
-    speed = current / elapsed if elapsed else 1
-    eta = (total - current) / speed if speed else 0
+    diff = now - task["start_time"]
+    if diff == 0:
+        diff = 1
+    speed = current / diff
+    eta = (total - current) / speed if speed != 0 else 0
     percent = current * 100 / total
 
     try:
@@ -21,16 +21,19 @@ def progress_bar(current: int, total: int, task: dict):
     except:
         pass
 
+
 def take_screenshots(path: str, output_dir: str, count: int = 3) -> List[str]:
+    import subprocess
+    from pathlib import Path
+
+    duration_cmd = [
+        "ffprobe", "-v", "error", "-show_entries",
+        "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path
+    ]
     try:
-        duration_cmd = [
-            "ffprobe", "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=noprint_wrappers=1:nokey=1", path
-        ]
         duration = float(subprocess.check_output(duration_cmd).decode().strip())
         interval = duration / (count + 1)
         screenshots = []
-
         for i in range(1, count + 1):
             timestamp = int(i * interval)
             output = f"{output_dir}/ss_{i}.jpg"
@@ -38,23 +41,22 @@ def take_screenshots(path: str, output_dir: str, count: int = 3) -> List[str]:
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if os.path.exists(output):
                 screenshots.append(output)
-
         return screenshots
     except Exception as e:
-        print(f"[Screenshot Error] {e}")
+        print(f"[ERROR] Screenshot error: {e}")
         return []
+
 
 def cleanup(path: str):
     if os.path.isdir(path):
-        for file in os.listdir(path):
-            os.remove(os.path.join(path, file))
+        for f in os.listdir(path):
+            os.remove(os.path.join(path, f))
         os.rmdir(path)
     elif os.path.isfile(path):
         os.remove(path)
 
-def caption_styles(style: str, text: str, view=False) -> str:
-    if view:
-        text = f"[{text}](https://t.me/sunriseseditsoffical6)"
+
+def caption_styles(style: str, text: str) -> str:
     if style == "bold":
         return f"**{text}**"
     elif style == "italic":
