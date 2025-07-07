@@ -4,16 +4,19 @@ import time
 def progress_bar(current: int, total: int, task: dict):
     now = time.time()
     diff = now - task["start_time"]
-    if diff == 0:
-        diff = 1
+    diff = diff if diff > 0 else 1
     speed = current / diff
-    eta = (total - current) / speed if speed != 0 else 0
+    eta = (total - current) / speed if speed else 0
     percent = current * 100 / total
     try:
-        text = f"{task['action']}... {percent:.0f}%\nSpeed: {speed/1024:.2f} KB/s\nETA: {int(eta)}s"
+        text = (
+            f"{task['action']}... {percent:.0f}%\n"
+            f"Speed: {speed / (1024 * 1024):.2f} MB/s\n"
+            f"ETA: {int(eta)}s"
+        )
         task["message"].edit(text)
-    except:
-        pass
+    except Exception as e:
+        print(f"Progress bar error: {e}")
 
 def take_screenshots(path: str, output_dir: str, count: int = 3):
     import subprocess
