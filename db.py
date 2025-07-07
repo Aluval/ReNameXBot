@@ -4,11 +4,10 @@ from pymongo import MongoClient
 MONGO_URL = "mongodb+srv://HARSHA24:HARSHA24@cluster0.sxaj8up.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # or your Atlas URI
 
 client = MongoClient(MONGO_URL)
-db = client.renamebot
-collection = db.users
+db = client["RenameBot"]  # MUST match existing casing exactly
+collection = db["users"]
 
-
-def get_settings(user_id: int) -> dict:
+def get_settings(user_id):
     user = collection.find_one({"_id": user_id})
     if not user:
         default = {
@@ -25,19 +24,15 @@ def get_settings(user_id: int) -> dict:
         return default
     return user
 
-
-def update_settings(user_id: int, key: str, value):
+def update_settings(user_id, key, value):
     collection.update_one({"_id": user_id}, {"$set": {key: value}}, upsert=True)
 
-
-def set_thumbnail(user_id: int, file_id: str):
+def set_thumbnail(user_id, file_id):
     update_settings(user_id, "thumbnail", file_id)
 
-
-def get_thumbnail(user_id: int):
+def get_thumbnail(user_id):
     user = get_settings(user_id)
     return user.get("thumbnail")
 
-
-def clear_thumbnail(user_id: int):
+def clear_thumbnail(user_id):
     update_settings(user_id, "thumbnail", None)
