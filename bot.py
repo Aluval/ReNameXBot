@@ -6,7 +6,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from db import (
     get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
     update_caption, get_caption, get_admins, is_admin_user,
-    add_task, get_user_tasks, remove_task, save_file, get_saved_file
+    add_task, get_user_tasks, remove_task, save_file, get_saved_file, get_user_files
 )
 from utils import progress_bar, take_screenshots, cleanup
 
@@ -18,15 +18,14 @@ ADMIN = get_admins()
 app = Client("RenameBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 QUEUE = asyncio.Semaphore(4)
 
+DOWNLOAD_DIR = "downloads"
+os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+
 @app.on_message(filters.command("start"))
 async def start(client, message):
-    await message.reply("👋 Welcome to Rename Bot!\nUse /rename <newname> by replying to a file.")
+    await message.reply("\U0001F44B Welcome to Rename Bot!\nUse /rename <newname> by replying to a file.")
 
-@app.on_message(filters.photo & filters.private)
-async def save_thumb(client, message):
-    user_id = message.from_user.id
-    set_thumbnail(user_id, message.photo.file_id)
-    await message.reply("✅ Thumbnail saved.")
+
 
 @app.on_message(filters.command("rename"))
 async def rename_file(client, message: Message):
@@ -48,10 +47,8 @@ async def rename_file(client, message: Message):
         if prefix_on:
             new_name = f"{prefix_text} {new_name}"
 
-        # Save Task
         add_task(user_id, new_name)
 
-        # Download thumbnail (if set)
         thumb_id = get_thumbnail(user_id)
         thumb_path = None
         if thumb_id:
@@ -67,7 +64,7 @@ async def rename_file(client, message: Message):
         }
 
         file_path = await message.reply_to_message.download(
-            file_name=new_name,
+            file_name=os.path.join(DOWNLOAD_DIR, new_name),
             progress=progress_bar,
             progress_args=(task,)
         )
@@ -92,10 +89,8 @@ async def rename_file(client, message: Message):
             await task["message"].edit(f"❌ Upload failed: {e}")
             return
 
-        # Save file info for retrieval
         save_file(user_id, new_name, file_path)
 
-        # Screenshots
         if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
             ss_dir = f"ss_{user_id}"
             os.makedirs(ss_dir, exist_ok=True)
@@ -103,24 +98,27 @@ async def rename_file(client, message: Message):
                 await message.reply_photo(ss)
             cleanup(ss_dir)
 
-        # Cleanup
-        cleanup(file_path)
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
-
-
 
 @app.on_message(filters.command("getfile"))
 async def get_file(client, message):
     uid = message.from_user.id
     if len(message.command) < 2:
         return await message.reply("❗ Usage: /getfile <filename>")
-    filename = message.text.split(None, 1)[1].strip()
-    file_path = get_saved_file(uid, filename)
-    if file_path and os.path.exists(file_path):
-        await message.reply_document(file_path)
+
+    filename = message.text.split(None, 1)[1].strip().lower()
+    files = get_user_files(uid)
+
+    match = next((f["path"] for f in files if filename in f["name"].lower()), None)
+
+    if match and os.path.exists(match):
+        await message.reply_document(match)
     else:
         await message.reply("❗ File not found or already deleted.")
+        
+
+
 
 @app.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
