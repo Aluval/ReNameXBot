@@ -145,8 +145,11 @@ async def list_tasks(client, message):
     if end < len(tasks):
         buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"task_page:{page + 1}"))
 
-    await message.reply(text, reply_markup=InlineKeyboardMarkup([buttons] if buttons else []))
-
+    if buttons:
+        await message.reply(text, reply_markup=InlineKeyboardMarkup([buttons]))
+    else:
+        await message.reply(text)
+    
 @app.on_callback_query(filters.regex("^task_page:(\\d+)$"))
 async def paginate_tasks(client, cb):
     page = int(cb.data.split(":")[1])
