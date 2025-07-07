@@ -58,10 +58,10 @@ async def rename_file(client, message: Message):
         rename_type = settings.get("rename_type", "doc")
         prefix_on = settings.get("prefix_enabled", True)
         caption_style = settings.get("caption_style", "bold")
-        thumb_id = get_thumbnail(user_id)
         prefix_text = settings.get("prefix_text", "")
         caption_custom = get_caption(user_id)
 
+        # Get filename
         if len(message.command) >= 2:
             new_name = message.text.split(None, 1)[1]
         elif message.reply_to_message and message.reply_to_message.document:
@@ -72,6 +72,16 @@ async def rename_file(client, message: Message):
         if prefix_on:
             new_name = f"{prefix_text} {new_name}"
 
+        # Download thumbnail (if exists)
+        thumb_id = get_thumbnail(user_id)
+        thumb_path = None
+        if thumb_id:
+            try:
+                thumb_path = await client.download_media(thumb_id, file_name=f"thumb_{user_id}.jpg")
+            except:
+                thumb_path = None
+
+        # Download file
         task = {"message": await message.reply("📥 Starting download..."), "start_time": time.time(), "action": "📥 Downloading"}
         file_path = await message.reply_to_message.download(
             file_name=new_name,
@@ -79,28 +89,37 @@ async def rename_file(client, message: Message):
             progress_args=(task,)
         )
 
-        if not os.path.exists(file_path):
-            return await message.reply("❗ Download failed. File not found.")
-
+        # Generate caption
         cap = caption_custom if caption_custom else caption_styles(caption_style, f"✅ File: `{new_name}`")
-        task = {"message": await message.reply("📤 Uploading..."), "start_time": time.time(), "action": "📤 Uploading"}
 
+        # Upload
+        task = {"message": await message.reply("📤 Uploading..."), "start_time": time.time(), "action": "📤 Uploading"}
         try:
             if rename_type == "video":
-                await message.reply_video(file_path, caption=cap, thumb=thumb_id, progress=progress_bar, progress_args=(task,))
+                await message.reply_video(
+                    file_path, caption=cap, thumb=thumb_path,
+                    progress=progress_bar, progress_args=(task,)
+                )
             else:
-                await message.reply_document(file_path, caption=cap, thumb=thumb_id, progress=progress_bar, progress_args=(task,))
+                await message.reply_document(
+                    file_path, caption=cap, thumb=thumb_path,
+                    progress=progress_bar, progress_args=(task,)
+                )
         except Exception as e:
-            return await message.reply(f"❗ Upload failed: {e}")
+            return await message.reply(f"❗ Upload failed: `{e}`")
 
-        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
+        # Screenshots (optional)
+        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov", ".webm")):
             ss_dir = f"ss_{user_id}"
             os.makedirs(ss_dir, exist_ok=True)
             for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
                 await message.reply_photo(ss)
             cleanup(ss_dir)
 
+        # Cleanup
         cleanup(file_path)
+        if thumb_path and os.path.exists(thumb_path):
+            os.remove(thumb_path)
 
 @app.on_message(filters.command("setprefix"))
 async def set_prefix_command(client, message):
