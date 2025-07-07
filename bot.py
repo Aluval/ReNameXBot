@@ -6,22 +6,22 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 
 from db import (
     get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
-    update_caption, get_caption, get_admins, is_admin_user
+    update_caption, get_caption, get_admins, is_admin_user, add_task, remove_task, get_user_tasks
 )
-from utils import progress_bar, take_screenshots, cleanup, caption_styles
+from utils import progress_bar, take_screenshots, cleanup
 
 API_ID = 10811400
 API_HASH = "191bf5ae7a6c39771e7b13cf4ffd1279"
 BOT_TOKEN = "7097361755:AAHUd9LI4_JoAj57WfGbYVhG0msao8d04ck"
 
 app = Client("RenameBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-QUEUE = asyncio.Semaphore(4)
+
+user_queues = {}
 
 @app.on_message(filters.command("start"))
 async def start(client, message):
     user_id = message.from_user.id
     s = get_settings(user_id)
-    caption = get_caption(user_id)
     markup = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss"),
@@ -32,7 +32,6 @@ async def start(client, message):
             InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")
         ],
         [
-            InlineKeyboardButton("🎨 Style", callback_data="style_menu"),
             InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
         ],
         [
@@ -42,26 +41,64 @@ async def start(client, message):
     ])
     await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
 
-@app.on_message(filters.photo & filters.private)
-async def save_thumb(client, message):
+@app.on_message(filters.command("tasks"))
+async def list_tasks(client, message):
     user_id = message.from_user.id
-    file_id = message.photo.file_id
-    set_thumbnail(user_id, file_id)
-    await message.reply_photo(file_id, caption="✅ Thumbnail saved.")
-    await start(client, message)
+    page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
+    tasks = get_user_tasks(user_id)
+    items_per_page = 5
+    start = (page - 1) * items_per_page
+    end = start + items_per_page
+    paged_tasks = tasks[start:end]
+
+    if not paged_tasks:
+        return await message.reply("❗ No tasks found on this page.")
+
+    text = "📋 **Your Tasks:**\n\n"
+    for i, task in enumerate(paged_tasks, start=start + 1):
+        text += f"{i}. `{task}`\n"
+
+    buttons = []
+    if page > 1:
+        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"task_page:{page - 1}"))
+    if end < len(tasks):
+        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"task_page:{page + 1}"))
+
+    await message.reply(text, reply_markup=InlineKeyboardMarkup([buttons] if buttons else []))
+
+@app.on_callback_query(filters.regex("^task_page:(\\d+)$"))
+async def paginate_tasks(client, cb):
+    page = int(cb.data.split(":")[1])
+    cb.message.text = f"/tasks {page}"
+    await list_tasks(client, cb.message)
+    await cb.answer()
+
+@app.on_message(filters.command("removetask") & filters.user(get_admins()))
+async def remove_user_task(client, message):
+    if len(message.command) < 3:
+        return await message.reply("❗ Usage: /removetask <user_id> <task_index>")
+    try:
+        user_id = int(message.command[1])
+        index = int(message.command[2]) - 1
+        if remove_task(user_id, index):
+            await message.reply(f"✅ Task {index + 1} removed for user {user_id}.")
+        else:
+            await message.reply("❗ Invalid task index.")
+    except Exception as e:
+        await message.reply(f"❗ Error: {e}")
 
 @app.on_message(filters.command("rename"))
 async def rename_file(client, message: Message):
     user_id = message.from_user.id
-    async with QUEUE:
+    queue = user_queues.setdefault(user_id, asyncio.Semaphore(4))
+
+    async with queue:
         settings = get_settings(user_id)
         rename_type = settings.get("rename_type", "doc")
         prefix_on = settings.get("prefix_enabled", True)
-        caption_style = settings.get("caption_style", "bold")
         prefix_text = settings.get("prefix_text", "")
         caption_custom = get_caption(user_id)
 
-        # Get new filename
         if len(message.command) >= 2:
             new_name = message.text.split(None, 1)[1]
         elif message.reply_to_message and message.reply_to_message.document:
@@ -72,7 +109,8 @@ async def rename_file(client, message: Message):
         if prefix_on:
             new_name = f"{prefix_text} {new_name}"
 
-        # Download thumbnail (if set)
+        add_task(user_id, new_name)
+
         thumb_id = get_thumbnail(user_id)
         thumb_path = None
         if thumb_id:
@@ -81,7 +119,6 @@ async def rename_file(client, message: Message):
             except:
                 thumb_path = None
 
-        # Start download
         task = {
             "message": await message.reply("📥 Starting download..."),
             "start_time": time.time(),
@@ -94,18 +131,10 @@ async def rename_file(client, message: Message):
             progress_args=(task,)
         )
 
-        # Final download complete message
         await task["message"].edit("✅ Download completed")
 
-        # Clean Markdown-breaking characters from filename
-        safe_name = new_name.replace("*", "").replace("_", "").replace("`", "")
-     
-        # Generate caption
-        cap = (
-    caption_custom.replace("{filename}", safe_name)
-    if caption_custom else caption_styles(caption_style, f"✅ File: {safe_name}")
-)
-        # Start upload
+        cap = caption_custom.replace("{filename}", new_name) if caption_custom else f"✅ File: {new_name}"
+
         task = {
             "message": await message.reply("📤 Starting upload..."),
             "start_time": time.time(),
@@ -123,15 +152,11 @@ async def rename_file(client, message: Message):
                     file_path, caption=cap, thumb=thumb_path,
                     progress=progress_bar, progress_args=(task,)
                 )
-
-            # Final upload complete message
             await task["message"].edit("✅ Upload completed")
-
         except Exception as e:
             await task["message"].edit(f"❗ Upload failed: `{e}`")
             return
 
-        # Screenshots
         if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov", ".webm")):
             ss_dir = f"ss_{user_id}"
             os.makedirs(ss_dir, exist_ok=True)
@@ -139,10 +164,19 @@ async def rename_file(client, message: Message):
                 await message.reply_photo(ss)
             cleanup(ss_dir)
 
-        # Cleanup
         cleanup(file_path)
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
+            
+
+@app.on_message(filters.photo & filters.private)
+async def save_thumb(client, message):
+    user_id = message.from_user.id
+    file_id = message.photo.file_id
+    set_thumbnail(user_id, file_id)
+    await message.reply_photo(file_id, caption="✅ Thumbnail saved.")
+    await start(client, message)
+
 
 @app.on_message(filters.command("setprefix"))
 async def set_prefix_command(client, message):
@@ -166,6 +200,7 @@ async def set_caption_command(client, message):
 async def cb_settings(client, cb):
     uid = cb.from_user.id
     data = get_settings(uid)
+
     if cb.data == "toggle_ss":
         update_settings(uid, "screenshot", not data.get("screenshot", False))
     elif cb.data == "toggle_prefix":
@@ -190,30 +225,25 @@ async def cb_settings(client, cb):
         clear_thumbnail(uid)
         await cb.answer("✅ Thumbnail removed")
         return await start(client, cb.message)
-    elif cb.data == "style_menu":
-        styles = ["bold", "italic", "code"]
-        style_buttons = [InlineKeyboardButton(st.title(), callback_data=f"set_style:{st}") for st in styles]
-        await cb.message.edit("🎨 Choose Caption Style:", reply_markup=InlineKeyboardMarkup([
-            style_buttons[i:i + 2] for i in range(0, len(style_buttons), 2)
-        ]))
-        return await cb.answer()
-    elif cb.data.startswith("set_style:"):
-        style = cb.data.split(":")[1]
-        update_settings(uid, "caption_style", style)
-        await cb.message.delete()
-        return await start(client, cb.message)
 
     try:
         new_data = get_settings(uid)
         markup = InlineKeyboardMarkup([
-            [InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss"),
-             InlineKeyboardButton(f"🧮 Count: {new_data.get('count')}", callback_data="noop")],
-            [InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
-             InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")],
-            [InlineKeyboardButton("🎨 Style", callback_data="style_menu"),
-             InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")],
-            [InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
-             InlineKeyboardButton("📄 Caption", callback_data="show_caption")]
+            [
+                InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss"),
+                InlineKeyboardButton(f"🧮 Count: {new_data.get('count')}", callback_data="noop")
+            ],
+            [
+                InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+                InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")
+            ],
+            [
+                InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
+            ],
+            [
+                InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+                InlineKeyboardButton("📄 Caption", callback_data="show_caption")
+            ]
         ])
         await cb.message.edit("⚙️ Customize your bot settings:", reply_markup=markup)
         await cb.answer()
