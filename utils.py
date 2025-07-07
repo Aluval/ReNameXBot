@@ -1,39 +1,41 @@
 import os
 import time
-import subprocess
 
-def progress_bar(current, total, task):
+def progress_bar(current: int, total: int, task: dict):
     now = time.time()
-    elapsed = now - task["start_time"]
-    speed = current / elapsed if elapsed > 0 else 0
-    eta = (total - current) / speed if speed > 0 else 0
-    percent = (current / total) * 100
-
-    bar = f"{task['action']}... {percent:.0f}%\nSpeed: {speed/1024:.2f} KB/s\nETA: {int(eta)}s"
+    diff = now - task["start_time"]
+    if diff == 0:
+        diff = 1
+    speed = current / diff
+    eta = (total - current) / speed if speed != 0 else 0
+    percent = current * 100 / total
     try:
-        task["message"].edit_text(bar)
+        text = f"{task['action']}... {percent:.0f}%\nSpeed: {speed/1024:.2f} KB/s\nETA: {int(eta)}s"
+        task["message"].edit(text)
     except:
         pass
 
-def take_screenshots(file_path, output_dir, count=3):
-    duration_cmd = f'ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "{file_path}"'
+def take_screenshots(path: str, output_dir: str, count: int = 3):
+    import subprocess
+    from pathlib import Path
+    duration_cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", path]
     try:
-        duration = float(subprocess.check_output(duration_cmd, shell=True).decode().strip())
-    except:
-        duration = 0
-    interval = duration // (count + 1)
-    output_files = []
+        duration = float(subprocess.check_output(duration_cmd).decode().strip())
+        interval = duration / (count + 1)
+        screenshots = []
+        for i in range(1, count + 1):
+            timestamp = int(i * interval)
+            output = f"{output_dir}/ss_{i}.jpg"
+            cmd = ["ffmpeg", "-ss", str(timestamp), "-i", path, "-vframes", "1", "-q:v", "2", output]
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if os.path.exists(output):
+                screenshots.append(output)
+        return screenshots
+    except Exception as e:
+        print(f"[ERROR] Screenshot error: {e}")
+        return []
 
-    for i in range(1, count + 1):
-        timestamp = int(interval * i)
-        out_file = os.path.join(output_dir, f"ss_{i}.jpg")
-        cmd = f'ffmpeg -ss {timestamp} -i "{file_path}" -frames:v 1 "{out_file}" -q:v 2 -y'
-        subprocess.call(cmd, shell=True)
-        if os.path.exists(out_file):
-            output_files.append(out_file)
-    return output_files
-
-def cleanup(path):
+def cleanup(path: str):
     if os.path.isdir(path):
         for f in os.listdir(path):
             os.remove(os.path.join(path, f))
@@ -41,14 +43,14 @@ def cleanup(path):
     elif os.path.isfile(path):
         os.remove(path)
 
-def caption_styles(style, text):
+def caption_styles(style: str, text: str) -> str:
     if style == "bold":
         return f"**{text}**"
     elif style == "italic":
         return f"__{text}__"
-    elif style == "code":
-        return f"`{text}`"
     elif style == "mono":
+        return f"`{text}`"
+    elif style == "code":
         return f"```{text}```"
     else:
         return text
