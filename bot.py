@@ -1,4 +1,5 @@
 import os
+import time
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from db import get_settings, update_settings
@@ -60,30 +61,32 @@ async def rename_file(client, message: Message):
         return await message.reply("❗Provide new name: `/rename newname.ext`")
 
     new_name = message.text.split(None, 1)[1]
-    media = message.reply_to_message.document
+    doc_msg = message.reply_to_message
 
-    file_path = await message.reply_to_message.download(
-        file_name=new_name,
-        progress=progress_bar,
-        progress_args=("📥 Downloading", message)
-    )
+    # ⏳ Start Download
+    status = await message.reply("📥 Starting download...")
+    task = {"message": status, "start_time": time.time(), "action": "📥 Downloading"}
+    file_path = await doc_msg.download(file_name=new_name, progress=progress_bar, progress_args=(task,))
     result = f"✅ Renamed to `{new_name}`"
 
-    if settings.get('screenshot') and new_name.lower().endswith(('.mp4', '.mkv', '.mov')):
+    # 🎞️ Screenshots if enabled and is video
+    if settings.get('screenshot') and new_name.lower().endswith(('.mp4', '.mkv', '.mov', '.webm')):
         ss_dir = f"ss_{user_id}"
         os.makedirs(ss_dir, exist_ok=True)
-        ss = take_screenshots(file_path, ss_dir, settings.get('count', 3))
-        for s in ss:
-            await message.reply_photo(s)
+        ss_list = take_screenshots(file_path, ss_dir, settings.get('count', 3))
+        for ss in ss_list:
+            if os.path.exists(ss):
+                try:
+                    await message.reply_photo(ss)
+                except Exception as e:
+                    await message.reply(f"❗ Failed to send screenshot: {e}")
         cleanup(ss_dir)
-        result += f"\n📸 {len(ss)} screenshots attached."
+        result += f"\n📸 {len(ss_list)} screenshots attached."
 
-    await message.reply_document(
-        file_path,
-        caption=result,
-        progress=progress_bar,
-        progress_args=("📤 Uploading", message)
-    )
+    # 📤 Upload File
+    status = await message.reply("📤 Starting upload...")
+    task = {"message": status, "start_time": time.time(), "action": "📤 Uploading"}
+    await message.reply_document(file_path, caption=result, progress=progress_bar, progress_args=(task,))
     cleanup(file_path)
 
 app.run()
