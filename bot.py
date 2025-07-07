@@ -3,10 +3,10 @@ import time
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+
 from db import (
     get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
-    update_caption, get_caption, get_admins, is_admin_user,
-    increase_limit, decrease_limit, get_max_concurrent
+    update_caption, get_caption, get_admins, is_admin_user
 )
 from utils import progress_bar, take_screenshots, cleanup, caption_styles
 
@@ -15,82 +15,41 @@ API_HASH = "191bf5ae7a6c39771e7b13cf4ffd1279"
 BOT_TOKEN = "7097361755:AAHUd9LI4_JoAj57WfGbYVhG0msao8d04ck"
 
 app = Client("RenameBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-QUEUE = asyncio.Semaphore(get_max_concurrent())
+QUEUE = asyncio.Semaphore(4)
 
-# /start - Settings UI
 @app.on_message(filters.command("start"))
 async def start(client, message):
     user_id = message.from_user.id
     s = get_settings(user_id)
+    caption = get_caption(user_id)
     markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss"),
-         InlineKeyboardButton(f"🧮 Count: {s.get('count')}", callback_data="noop")],
-        [InlineKeyboardButton("➕", callback_data="inc_count"), InlineKeyboardButton("➖", callback_data="dec_count")],
-        [InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
-         InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")],
-        [InlineKeyboardButton("🎨 Style", callback_data="style_menu"),
-         InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")],
-        [InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix")]
+        [
+            InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss"),
+            InlineKeyboardButton(f"🧮 Count: {s.get('count')}", callback_data="noop")
+        ],
+        [
+            InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+            InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")
+        ],
+        [
+            InlineKeyboardButton("🎨 Style", callback_data="style_menu"),
+            InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
+        ],
+        [
+            InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+            InlineKeyboardButton("📄 Caption", callback_data="show_caption")
+        ]
     ])
     await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
 
-# /setprefix
-@app.on_message(filters.command("setprefix"))
-async def set_prefix_command(client, message):
-    uid = message.from_user.id
-    if len(message.command) < 2:
-        return await message.reply("❗ Usage: /setprefix <text>")
-    prefix = message.text.split(None, 1)[1].strip()
-    update_settings(uid, "prefix_text", prefix)
-    await message.reply(f"✅ Prefix updated to:\n{prefix}")
-
-# /setcaption
-@app.on_message(filters.command("setcaption"))
-async def set_caption_command(client, message):
-    uid = message.from_user.id
-    if len(message.command) < 2:
-        return await message.reply("❗ Usage: /setcaption <text>")
-    cap = message.text.split(None, 1)[1].strip()
-    update_caption(uid, cap)
-    await message.reply("✅ Custom caption updated!")
-
-# /broadcast (admin only)
-@app.on_message(filters.command("broadcast") & filters.user(get_admins()))
-async def broadcast_admin(client, message):
-    if len(message.command) < 2:
-        return await message.reply("❗ Usage: /broadcast <text>")
-    msg = message.text.split(None, 1)[1]
-    from db import settings_col
-    users = settings_col.distinct("_id")
-    sent = 0
-    for uid in users:
-        try:
-            await client.send_message(uid, msg)
-            sent += 1
-        except:
-            continue
-    await message.reply(f"✅ Sent to {sent} users")
-
-# /increase & /decrease concurrency (admin only)
-@app.on_message(filters.command("increase") & filters.user(get_admins()))
-async def increase_concurrent(client, message):
-    new = increase_limit()
-    await message.reply(f"✅ Increased limit to {new}")
-
-@app.on_message(filters.command("decrease") & filters.user(get_admins()))
-async def decrease_concurrent(client, message):
-    new = decrease_limit()
-    await message.reply(f"✅ Decreased limit to {new}")
-
-# Thumbnail save
 @app.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
     user_id = message.from_user.id
     file_id = message.photo.file_id
     set_thumbnail(user_id, file_id)
-    await message.reply("✅ Thumbnail saved.")
+    await message.reply_photo(file_id, caption="✅ Thumbnail saved.")
+    await start(client, message)
 
-# Rename Handler
 @app.on_message(filters.command("rename"))
 async def rename_file(client, message: Message):
     user_id = message.from_user.id
@@ -101,7 +60,7 @@ async def rename_file(client, message: Message):
         caption_style = settings.get("caption_style", "bold")
         thumb_id = get_thumbnail(user_id)
         prefix_text = settings.get("prefix_text", "")
-        caption_custom = get_caption(user_id) or None
+        caption_custom = get_caption(user_id)
 
         if len(message.command) >= 2:
             new_name = message.text.split(None, 1)[1]
@@ -119,6 +78,9 @@ async def rename_file(client, message: Message):
             progress=progress_bar,
             progress_args=(task,)
         )
+
+        if not os.path.exists(file_path):
+            return await message.reply("❗ Download failed. File not found.")
 
         cap = caption_custom if caption_custom else caption_styles(caption_style, f"✅ File: `{new_name}`")
         task = {"message": await message.reply("📤 Uploading..."), "start_time": time.time(), "action": "📤 Uploading"}
@@ -140,18 +102,30 @@ async def rename_file(client, message: Message):
 
         cleanup(file_path)
 
-# Callback Buttons Handler
+@app.on_message(filters.command("setprefix"))
+async def set_prefix_command(client, message):
+    uid = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: /setprefix <text>")
+    prefix = message.text.split(None, 1)[1].strip()
+    update_settings(uid, "prefix_text", prefix)
+    await message.reply(f"✅ Prefix updated to:\n{prefix}")
+
+@app.on_message(filters.command("setcaption"))
+async def set_caption_command(client, message):
+    uid = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: /setcaption <text>")
+    cap = message.text.split(None, 1)[1].strip()
+    update_caption(uid, cap)
+    await message.reply("✅ Custom caption updated!")
+
 @app.on_callback_query()
 async def cb_settings(client, cb):
     uid = cb.from_user.id
     data = get_settings(uid)
-
     if cb.data == "toggle_ss":
         update_settings(uid, "screenshot", not data.get("screenshot", False))
-    elif cb.data == "inc_count":
-        update_settings(uid, "count", min(10, data.get("count", 3) + 1))
-    elif cb.data == "dec_count":
-        update_settings(uid, "count", max(1, data.get("count", 3) - 1))
     elif cb.data == "toggle_prefix":
         update_settings(uid, "prefix_enabled", not data.get("prefix_enabled", True))
     elif cb.data == "toggle_type":
@@ -160,6 +134,10 @@ async def cb_settings(client, cb):
     elif cb.data == "show_prefix":
         await cb.answer()
         return await cb.message.reply(f"📎 Current Prefix:\n{data.get('prefix_text', '-')}")
+    elif cb.data == "show_caption":
+        cap = get_caption(uid) or "None"
+        await cb.answer()
+        return await cb.message.reply(f"📄 Current Custom Caption:\n{cap}")
     elif cb.data == "thumb_menu":
         await cb.message.edit("🖼️ Thumbnail Options:", reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("📌 Send Photo to Set", callback_data="noop")],
@@ -168,33 +146,39 @@ async def cb_settings(client, cb):
         return await cb.answer()
     elif cb.data == "remove_thumb":
         clear_thumbnail(uid)
-        return await cb.answer("✅ Thumbnail removed")
+        await cb.answer("✅ Thumbnail removed")
+        return await start(client, cb.message)
     elif cb.data == "style_menu":
         styles = ["bold", "italic", "code", "mono", "plain"]
         style_buttons = [InlineKeyboardButton(st.title(), callback_data=f"set_style:{st}") for st in styles]
         await cb.message.edit("🎨 Choose Caption Style:", reply_markup=InlineKeyboardMarkup([
-            style_buttons[i:i+2] for i in range(0, len(style_buttons), 2)
+            style_buttons[i:i + 2] for i in range(0, len(style_buttons), 2)
         ]))
         return await cb.answer()
     elif cb.data.startswith("set_style:"):
         style = cb.data.split(":")[1]
         update_settings(uid, "caption_style", style)
         await cb.message.delete()
-        return
+        return await start(client, cb.message)
 
-    # Reload updated settings
-    new_data = get_settings(uid)
-    markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss"),
-         InlineKeyboardButton(f"🧮 Count: {new_data.get('count')}", callback_data="noop")],
-        [InlineKeyboardButton("➕", callback_data="inc_count"), InlineKeyboardButton("➖", callback_data="dec_count")],
-        [InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
-         InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")],
-        [InlineKeyboardButton("🎨 Style", callback_data="style_menu"),
-         InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")],
-        [InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix")]
-    ])
-    await cb.message.edit("⚙️ Customize your bot settings:", reply_markup=markup)
-    await cb.answer()
+    try:
+        new_data = get_settings(uid)
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss"),
+             InlineKeyboardButton(f"🧮 Count: {new_data.get('count')}", callback_data="noop")],
+            [InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+             InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")],
+            [InlineKeyboardButton("🎨 Style", callback_data="style_menu"),
+             InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")],
+            [InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+             InlineKeyboardButton("📄 Caption", callback_data="show_caption")]
+        ])
+        await cb.message.edit("⚙️ Customize your bot settings:", reply_markup=markup)
+        await cb.answer()
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await cb.answer("⚠️ No changes to update.")
+        else:
+            print("[Edit Error]", e)
 
 app.run()
