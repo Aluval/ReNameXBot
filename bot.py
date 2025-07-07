@@ -38,6 +38,16 @@ async def start(client, message):
     ])
     await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
 
+# ✅ Prefix customization command
+@app.on_message(filters.command("prefix"))
+async def set_custom_prefix(client, message):
+    user_id = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: `/prefix MyPrefix -`", quote=True)
+    new_prefix = message.text.split(None, 1)[1]
+    update_settings(user_id, "custom_prefix", new_prefix)
+    await message.reply(f"✅ Prefix updated to:\n`{new_prefix}`", quote=True)
+
 # ⚙️ Callback Query Handler
 @app.on_callback_query()
 async def cb_settings(client, cb):
@@ -97,23 +107,24 @@ async def rename_file(client, message: Message):
     rename_type = settings.get("rename_type", "doc")
     prefix = settings.get("prefix", True)
     caption_style = settings.get("caption_style", "bold")
+    custom_prefix = settings.get("custom_prefix", "@sunriseseditsoffical6 -")
     thumb_id = get_thumbnail(user_id)
 
     if not message.reply_to_message or not message.reply_to_message.document:
         return await message.reply("❗ Reply to a file to rename it.")
-
     if len(message.command) < 2:
         return await message.reply("❗ Provide a new filename after /rename")
 
     new_name = message.text.split(None, 1)[1]
     if prefix:
-        new_name = f"@sunriseseditsoffical6 - {new_name}"
+        new_name = f"{custom_prefix} {new_name}"
 
     task = {
         "message": await message.reply("📥 Starting download..."),
         "start_time": time.time(),
         "action": "📥 Downloading"
     }
+
     file_path = await message.reply_to_message.download(
         file_name=new_name,
         progress=progress_bar,
