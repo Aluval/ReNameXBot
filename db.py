@@ -1,38 +1,86 @@
 from pymongo import MongoClient
 
-# 🧠 MongoDB Setup
-MONGO_URL = "mongodb+srv://HARSHA24:HARSHA24@cluster0.sxaj8up.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"  # or your Atlas URI
-
+MONGO_URL = "mongodb+srv://HARSHA24:HARSHA24@cluster0.sxaj8up.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 client = MongoClient(MONGO_URL)
-db = client["RenameBot"]  # MUST match existing casing exactly
-collection = db["users"]
+db = client.rename_bot
 
-def get_settings(user_id):
-    user = collection.find_one({"_id": user_id})
-    if not user:
+settings_col = db.settings
+thumbs_col = db.thumbnails
+captions_col = db.captions
+admin_col = db.admins
+limits_col = db.limits
+
+# ---------- User Settings ----------
+def get_settings(uid):
+    data = settings_col.find_one({"_id": uid})
+    if not data:
         default = {
-            "_id": user_id,
+            "_id": uid,
             "screenshot": False,
             "count": 3,
-            "prefix_enabled": True,
-            "prefix_text": "@sunriseseditsoffical6 -",
             "rename_type": "doc",
+            "prefix_enabled": True,
             "caption_style": "bold",
-            "thumbnail": None
+            "prefix_text": "@sunriseseditsoffical6 -"
         }
-        collection.insert_one(default)
+        settings_col.insert_one(default)
         return default
-    return user
+    return data
 
-def update_settings(user_id, key, value):
-    collection.update_one({"_id": user_id}, {"$set": {key: value}}, upsert=True)
+def update_settings(uid, key, value):
+    settings_col.update_one({"_id": uid}, {"$set": {key: value}}, upsert=True)
 
-def set_thumbnail(user_id, file_id):
-    update_settings(user_id, "thumbnail", file_id)
+def update_prefix(uid, prefix):
+    update_settings(uid, "prefix_text", prefix)
 
-def get_thumbnail(user_id):
-    user = get_settings(user_id)
-    return user.get("thumbnail")
+# ---------- Thumbnail ----------
+def set_thumbnail(uid, file_id):
+    thumbs_col.update_one({"_id": uid}, {"$set": {"thumb": file_id}}, upsert=True)
 
-def clear_thumbnail(user_id):
-    update_settings(user_id, "thumbnail", None)
+def get_thumbnail(uid):
+    data = thumbs_col.find_one({"_id": uid})
+    return data["thumb"] if data else None
+
+def clear_thumbnail(uid):
+    thumbs_col.delete_one({"_id": uid})
+
+# ---------- Caption ----------
+def update_caption(uid, text):
+    captions_col.update_one({"_id": uid}, {"$set": {"caption": text}}, upsert=True)
+
+def get_caption(uid):
+    data = captions_col.find_one({"_id": uid})
+    return data["caption"] if data else None
+
+# ---------- Admin ----------
+def get_admins():
+    return [admin["_id"] for admin in admin_col.find()]
+
+def is_admin_user(uid):
+    return admin_col.find_one({"_id": uid}) is not None
+
+def add_admin(uid):
+    admin_col.update_one({"_id": uid}, {"$set": {"role": "admin"}}, upsert=True)
+
+def remove_admin(uid):
+    admin_col.delete_one({"_id": uid})
+
+# ---------- Limits ----------
+def get_max_concurrent():
+    val = limits_col.find_one({"_id": "global"})
+    return val["limit"] if val else 4
+
+def set_max_concurrent(new_limit):
+    limits_col.update_one({"_id": "global"}, {"$set": {"limit": new_limit}}, upsert=True)
+
+def increase_limit():
+    curr = get_max_concurrent()
+    set_max_concurrent(curr + 1)
+    return curr + 1
+
+def decrease_limit():
+    curr = get_max_concurrent()
+    if curr > 1:
+        set_max_concurrent(curr - 1)
+        return curr - 1
+    return curr
