@@ -70,7 +70,7 @@ def remove_task(user_id, index):
         return True
     return False
 
-def save_file_entry(user_id, file_name, file_path):
+def save_file(user_id, file_name, file_path):
     files_col.update_one(
         {"_id": user_id},
         {"$push": {"files": {
@@ -81,10 +81,18 @@ def save_file_entry(user_id, file_name, file_path):
         upsert=True
     )
 
+def get_saved_file(user_id, filename):
+    user_data = files_col.find_one({"_id": user_id})
+    if not user_data:
+        return None
+    for file in user_data.get("files", []):
+        if file["name"] == filename:
+            return file["path"]
+    return None
+
 def get_user_files(user_id):
     data = files_col.find_one({"_id": user_id})
     return data.get("files", []) if data else []
 
 def clear_user_files(user_id):
     files_col.delete_one({"_id": user_id})
-    
