@@ -97,8 +97,14 @@ async def rename_file(client, message: Message):
         # Final download complete message
         await task["message"].edit("✅ Download completed")
 
+        # Clean Markdown-breaking characters from filename
+        safe_name = new_name.replace("*", "").replace("_", "").replace("`", "")
+     
         # Generate caption
-        cap = caption_custom.replace("{filename}", new_name) if caption_custom else caption_styles(caption_style, f"✅ File: `{new_name}`")
+        cap = (
+    caption_custom.replace("{filename}", safe_name)
+    if caption_custom else caption_styles(caption_style, f"✅ File: {safe_name}")
+)
         # Start upload
         task = {
             "message": await message.reply("📤 Starting upload..."),
