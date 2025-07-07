@@ -80,11 +80,9 @@ def cleanup(path: str):
 
 def caption_styles(style: str, text: str) -> str:
     if style == "bold":
-        return f"**{text}**"
+        return f"*{text}*"
     elif style == "italic":
-        return f"__{text}__"
-    elif style == "mono":
-        return f"```{text}```"
+        return f"_{text}_"
     elif style == "code":
         return f"`{text}`"
     else:
