@@ -192,5 +192,14 @@ async def rename_file(client, message: Message):
 
     cleanup(file_path)
 
+@app.on_message(filters.command("setprefix"))
+async def set_prefix_command(client, message):
+    user_id = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Please provide the new prefix text.\n\nExample:\n`/setprefix @mychannel |`")
+
+    new_prefix = message.text.split(None, 1)[1].strip()
+    update_settings(user_id, "prefix_text", new_prefix)
+    await message.reply(f"✅ Prefix updated to:\n`{new_prefix}`")
 
 app.run()
