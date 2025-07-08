@@ -13,7 +13,7 @@ from utils import progress_bar, take_screenshots, cleanup
 API_ID = 10811400
 API_HASH = "191bf5ae7a6c39771e7b13cf4ffd1279"
 BOT_TOKEN = "7097361755:AAHUd9LI4_JoAj57WfGbYVhG0msao8d04ck"
-ADMIN = get_admins()
+ADMIN = 6469754522
 
 app = Client("RenameBot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 QUEUE = asyncio.Semaphore(4)
@@ -117,12 +117,12 @@ async def get_file(client, message):
     else:
         await message.reply("❗ File not found or already deleted.")
         
-
-
-
 @app.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
-    user_id = message.from_user.id
+    user = message.from_user
+    user_id = user.id
+    username = f"@{user.username}" if user.username else f"ID: {user.id}"
+
     page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
     tasks = get_user_tasks(user_id)
     items_per_page = 5
@@ -133,9 +133,9 @@ async def list_tasks(client, message):
     if not paged_tasks:
         return await message.reply("❗ No tasks found on this page.")
 
-    text = "📋 **Your Tasks:**\n\n"
+    text = f"📋 **Your Tasks ({username}):**\n\n"
     for i, task in enumerate(paged_tasks, start=start + 1):
-        text += f"{i}. `{task}`\n"
+        text += f"{i}. `{task}`\n\n"  # <-- DOUBLE NEWLINE for spacing
 
     buttons = []
     if page > 1:
@@ -147,13 +147,8 @@ async def list_tasks(client, message):
         await message.reply(text, reply_markup=InlineKeyboardMarkup([buttons]))
     else:
         await message.reply(text)
-    
-@app.on_callback_query(filters.regex("^task_page:(\\d+)$"))
-async def paginate_tasks(client, cb):
-    page = int(cb.data.split(":")[1])
-    cb.message.text = f"/tasks {page}"
-    await list_tasks(client, cb.message)
-    await cb.answer()
+
+
 
 @app.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_user_task(client, message):
@@ -168,7 +163,6 @@ async def remove_user_task(client, message):
             await message.reply("❗ Invalid task index.")
     except Exception as e:
         await message.reply(f"❗ Error: {e}")
-
 
 @app.on_message(filters.command("settings"))
 async def setting(client, message):
