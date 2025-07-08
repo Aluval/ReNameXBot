@@ -168,6 +168,36 @@ async def remove_user_task(client, message):
 async def setting(client, message):
     user_id = message.from_user.id
     s = get_settings(user_id)
+
+    markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss")
+        ],
+        [
+            InlineKeyboardButton("➖", callback_data="count_dec"),
+            InlineKeyboardButton(f"{s.get('count')}", callback_data="noop"),
+            InlineKeyboardButton("➕", callback_data="count_inc")
+        ],
+        [
+            InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+            InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")
+        ],
+        [
+            InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
+        ],
+        [
+            InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+            InlineKeyboardButton("📄 Caption", callback_data="show_caption")
+        ]
+    ])
+
+    await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
+
+"""
+@app.on_message(filters.command("settings"))
+async def setting(client, message):
+    user_id = message.from_user.id
+    s = get_settings(user_id)
     markup = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss"),
@@ -186,7 +216,7 @@ async def setting(client, message):
         ]
     ])
     await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
-
+"""
         
 @app.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
@@ -227,6 +257,10 @@ async def cb_settings(client, cb):
     elif cb.data == "toggle_type":
         new_type = "video" if data.get("rename_type") == "doc" else "doc"
         update_settings(uid, "rename_type", new_type)
+    elif cb.data == "count_inc":
+        update_settings(uid, "count", min(20, data.get("count", 3) + 1))  # Max 20
+    elif cb.data == "count_dec":
+        update_settings(uid, "count", max(1, data.get("count", 3) - 1))  # Min 1
     elif cb.data == "show_prefix":
         await cb.answer()
         return await cb.message.reply(f"📎 Current Prefix:\n{data.get('prefix_text', '-')}")
@@ -246,32 +280,31 @@ async def cb_settings(client, cb):
         return await start(client, cb.message)
 
     # Re-fetch updated settings
-    try:
-        new_data = get_settings(uid)
-        markup = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss"),
-                InlineKeyboardButton(f"🧮 Count: {new_data.get('count')}", callback_data="noop")
-            ],
-            [
-                InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
-                InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")
-            ],
-            [
-                InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
-            ],
-            [
-                InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
-                InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-            ]
-        ])
+    new_data = get_settings(uid)
+    markup = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss"),
+            InlineKeyboardButton("➖", callback_data="count_dec"),
+            InlineKeyboardButton(f"{new_data.get('count')}", callback_data="noop"),
+            InlineKeyboardButton("➕", callback_data="count_inc")
+        ],
+        [
+            InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+            InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")
+        ],
+        [
+            InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
+        ],
+        [
+            InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+            InlineKeyboardButton("📄 Caption", callback_data="show_caption")
+        ]
+    ])
 
-        # Use zero-width space \u200b to force refresh
-        await cb.message.edit("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
-        await cb.answer()
-
-    except Exception as e:
-        print("[Edit Error]", e)
+    # Refresh message with \u200b to force Telegram to allow the edit
+    await cb.message.edit("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
+    await cb.answer()
+    
 
 """
 @app.on_callback_query()
