@@ -245,6 +245,65 @@ async def cb_settings(client, cb):
         await cb.answer("✅ Thumbnail removed")
         return await start(client, cb.message)
 
+    # Re-fetch updated settings
+    try:
+        new_data = get_settings(uid)
+        markup = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss"),
+                InlineKeyboardButton(f"🧮 Count: {new_data.get('count')}", callback_data="noop")
+            ],
+            [
+                InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+                InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")
+            ],
+            [
+                InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
+            ],
+            [
+                InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+                InlineKeyboardButton("📄 Caption", callback_data="show_caption")
+            ]
+        ])
+
+        # Use zero-width space \u200b to force refresh
+        await cb.message.edit("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
+        await cb.answer()
+
+    except Exception as e:
+        print("[Edit Error]", e)
+
+"""
+@app.on_callback_query()
+async def cb_settings(client, cb):
+    uid = cb.from_user.id
+    data = get_settings(uid)
+
+    if cb.data == "toggle_ss":
+        update_settings(uid, "screenshot", not data.get("screenshot", False))
+    elif cb.data == "toggle_prefix":
+        update_settings(uid, "prefix_enabled", not data.get("prefix_enabled", True))
+    elif cb.data == "toggle_type":
+        new_type = "video" if data.get("rename_type") == "doc" else "doc"
+        update_settings(uid, "rename_type", new_type)
+    elif cb.data == "show_prefix":
+        await cb.answer()
+        return await cb.message.reply(f"📎 Current Prefix:\n{data.get('prefix_text', '-')}")
+    elif cb.data == "show_caption":
+        cap = get_caption(uid) or "None"
+        await cb.answer()
+        return await cb.message.reply(f"📄 Current Custom Caption:\n{cap}")
+    elif cb.data == "thumb_menu":
+        await cb.message.edit("🖼️ Thumbnail Options:", reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📌 Send Photo to Set", callback_data="noop")],
+            [InlineKeyboardButton("🗑️ Remove Thumbnail", callback_data="remove_thumb")]
+        ]))
+        return await cb.answer()
+    elif cb.data == "remove_thumb":
+        clear_thumbnail(uid)
+        await cb.answer("✅ Thumbnail removed")
+        return await start(client, cb.message)
+
     try:
         new_data = get_settings(uid)
         markup = InlineKeyboardMarkup([
@@ -271,5 +330,5 @@ async def cb_settings(client, cb):
             await cb.answer("⚠️ No changes to update.")
         else:
             print("[Edit Error]", e)
-
+"""
 app.run()
