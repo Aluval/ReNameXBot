@@ -108,14 +108,17 @@ async def get_file(client, message):
         return await message.reply("❗ Usage: /getfile <filename>")
 
     filename = message.text.split(None, 1)[1].strip().lower()
-    files = get_user_files(uid)
+    wait_msg = await message.reply("🔍 Searching your file...")
 
+    files = get_user_files(uid)
     match = next((f["path"] for f in files if filename in f["name"].lower()), None)
 
     if match and os.path.exists(match):
+        await wait_msg.edit("📤 Sending your file...")
         await message.reply_document(match)
+        await wait_msg.delete()
     else:
-        await message.reply("❗ File not found or already deleted.")
+        await wait_msg.edit("❗ File not found or already deleted.")
         
 @app.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
