@@ -101,24 +101,28 @@ async def rename_file(client, message: Message):
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
 
+
 @app.on_message(filters.command("getfile"))
-async def get_file(client, message):
+async def get_file(client: Client, message: Message):
     uid = message.from_user.id
+
     if len(message.command) < 2:
         return await message.reply("❗ Usage: /getfile <filename>")
 
     filename = message.text.split(None, 1)[1].strip().lower()
-    wait_msg = await message.reply("🔍 Searching your file...")
-
     files = get_user_files(uid)
+
     match = next((f["path"] for f in files if filename in f["name"].lower()), None)
 
     if match and os.path.exists(match):
-        await wait_msg.edit("📤 Sending your file...")
-        await message.reply_document(match)
-        await wait_msg.delete()
+        wait_msg = await message.reply("📤 Uploading your file, please wait...")
+        try:
+            await client.send_document(chat_id=message.chat.id, document=match)
+            await wait_msg.delete()  # Remove the waiting message after successful send
+        except Exception as e:
+            await wait_msg.edit(f"❗ Failed to send file:\n`{e}`")
     else:
-        await wait_msg.edit("❗ File not found or already deleted.")
+        await message.reply("❗ File not found or already deleted.")
         
 @app.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
