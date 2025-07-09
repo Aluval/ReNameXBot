@@ -124,10 +124,12 @@ async def logs_command(client: Client, message: Message):
     except Exception as e:
         await message.reply(f"❗ Error: `{e}`")
 
-# Callback handling for About, Help, Refresh
+  
+
 @Client.on_callback_query()
 async def callback_handler(client: Client, cb: CallbackQuery):
     data = cb.data
+
     if data == "about":
         await cb.message.edit_text(
             "**ℹ️ About Rename Bot**\n\n"
@@ -140,6 +142,7 @@ async def callback_handler(client: Client, cb: CallbackQuery):
                 [InlineKeyboardButton("🔙 Back", callback_data="start")]
             ])
         )
+
     elif data == "help":
         await cb.message.edit_text(
             "**🛠 Help Panel**\n\n"
@@ -156,6 +159,7 @@ async def callback_handler(client: Client, cb: CallbackQuery):
                 [InlineKeyboardButton("🔙 Back", callback_data="start")]
             ])
         )
+
     elif data == "refresh_stats":
         uptime = datetime.datetime.now() - START_TIME
         uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
@@ -181,7 +185,7 @@ async def callback_handler(client: Client, cb: CallbackQuery):
         ])
 
         try:
-            await cb.message.edit_caption(stats_text, reply_markup=buttons)
+            await cb.message.edit_text(stats_text, reply_markup=buttons)
             await cb.answer("✅ Stats refreshed!")
         except Exception as e:
             await cb.answer("⚠️ Failed to refresh.", show_alert=True)
@@ -190,6 +194,7 @@ async def callback_handler(client: Client, cb: CallbackQuery):
     elif data == "start":
         await start_command(client, cb.message)
 
-  if __name__ == '__main__':
+# ✅ Entry point
+if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
