@@ -4,7 +4,7 @@ from os import path as ospath
 from sys import executable
 from os import execl as osexecl
 
-UPSTREAM_REPO = 'https://github.com/Aluval/PixelPulseBot'
+UPSTREAM_REPO = 'https://github.com/Aluval/ReNameXBot'
 UPSTREAM_BRANCH = 'SH24BOTS'
 
 if UPSTREAM_REPO is not None:
@@ -13,7 +13,7 @@ if UPSTREAM_REPO is not None:
 
     update = srun([f"git init -q \
                      && git config --global user.email sunriseseditsoffical249@gmail.com \
-                     && git config --global user.name Rename24Bot \
+                     && git config --global user.name ReNameXBot \
                      && git add . \
                      && git commit -sm update -q \
                      && git remote add origin {UPSTREAM_REPO} \
