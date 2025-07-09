@@ -4,12 +4,12 @@ import time
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from db import (
+from main.db import (
     get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
     update_caption, get_caption, get_admins, is_admin_user,
     add_task, get_user_tasks, remove_task, save_file, get_saved_file, get_user_files, clear_database
 )
-from utils import progress_bar, take_screenshots, cleanup
+from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
 
 
