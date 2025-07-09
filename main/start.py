@@ -35,7 +35,7 @@ async def start_command(client: Client, message: Message):
     await message.reply_photo(
         photo=INFO_PIC,
         caption=(
-            "**👋 Welcome to Rename Bot!**\n\n"
+            "**👋 Welcome to ReNameXBot!**\n\n"
             "📁 Rename any document/video using:\n"
             "`/rename newname.ext` (by replying to a file)\n\n"
             "⚙️ Adjust your settings with /settings:\n"
@@ -52,7 +52,7 @@ async def start_command(client: Client, message: Message):
 @Client.on_message(filters.command("help"))
 async def help_command(client: Client, message: Message):
     await message.reply_text(
-        "**🛠 Help Menu for Rename Bot**\n\n"
+        "**🛠 Help Menu for ReNameXBot**\n\n"
         "`/rename newname.ext` - Reply to a file to rename it\n"
         "`/setprefix <text>` - Set custom prefix\n"
         "`/setcaption <text>` - Set custom caption\n"
@@ -68,7 +68,7 @@ async def help_command(client: Client, message: Message):
 @Client.on_message(filters.command("about"))
 async def about_command(client: Client, message: Message):
     await message.reply_text(
-        "**📦 About Rename Bot**\n\n"
+        "**📦 About ReNameXBot**\n\n"
         "🔹 Rename files with thumbnail, captions, and prefix\n"
         "🔹 Auto screenshot for videos (custom count)\n"
         "🔹 Stores renamed files for download\n"
@@ -115,12 +115,12 @@ async def stats_command(client: Client, message: Message):
     await message.reply_photo(INFO_PIC, caption=stats_text, reply_markup=buttons)
 
 # /logs command (Admin only)
-@Client.on_message(filters.command("logs"))
+@Client.on_message(filters.command("logs")  & filters.chat(ADMIN))
 async def logs_command(client: Client, message: Message):
     if message.from_user.id not in get_admins():
         return await message.reply("❌ You are not authorized to access logs.")
     try:
-        await message.reply_document("PixelPulseBot.txt", caption="📄 Bot Log File")
+        await message.reply_document("ReNameXBot.txt", caption="📄 Bot Log File")
     except Exception as e:
         await message.reply(f"❗ Error: `{e}`")
 
@@ -132,7 +132,7 @@ async def callback_handler(client: Client, cb: CallbackQuery):
 
     if data == "about":
         await cb.message.edit_text(
-            "**ℹ️ About Rename Bot**\n\n"
+            "**ℹ️ About ReNameXBot**\n\n"
             "➕ Rename files with prefix\n"
             "🖼️ Add thumbnails\n"
             "📸 Generate video screenshots\n"
