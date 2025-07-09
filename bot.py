@@ -388,4 +388,13 @@ async def cb_settings(client, cb):
         else:
             print("[Edit Error]", e)
 """
+
+@app.on_message(filters.command("clear") & filters.user(ADMIN))
+async def clear_database_handler(client: Client, msg: Message):
+    try:
+        await db.clear_database()
+        await msg.reply_text("Old database collections have been cleared ✅.")
+    except Exception as e:
+        await msg.reply_text(f"An error occurred: {e}")
+        
 app.run()
