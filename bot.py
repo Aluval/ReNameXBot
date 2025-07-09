@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import asyncio
 from pyrogram import Client, filters
@@ -103,26 +104,39 @@ async def rename_file(client, message: Message):
 
 
 @app.on_message(filters.command("getfile"))
-async def get_file(client, message: Message):
+async def get_file(client, message: Message):    
+
     uid = message.from_user.id
 
-    # Check if the filename is provided
     if len(message.command) < 2:
         return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
-    # Extract and sanitize filename
-    filename = message.text.split(None, 1)[1].strip().lower()
+    # Clean input (remove @username - or extra spaces)
+    raw_input = message.text.split(None, 1)[1].strip()
+    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
 
-    # Fetch the user's stored file records
-    files = get_user_files(uid)  # This should return a list of dicts with "name" and "path"
+    # 🔍 Fetch user files and show them (for debug)
+    files = get_user_files(uid)
 
-    # Search for a file that matches the provided filename
+    if not files:
+        return await message.reply("❗ You don’t have any files saved.")
+
+    debug_file_names = "\n".join([f"{i+1}. {f['name']}" for i, f in enumerate(files)])
+    print("User files:\n" + debug_file_names)  # DEBUG LOG
+    print("Searching for:", filename)  # DEBUG LOG
+
+    # Check partial match
     match = next((f["path"] for f in files if filename in f["name"].lower()), None)
 
     if match and os.path.exists(match):
-        await message.reply_document(match)
+        return await message.reply_document(match)
     else:
-        await message.reply("❗ File not found or already deleted.", quote=True)
+        # Show fallback
+        return await message.reply(
+            f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
+            "\n".join([f"`{f['name']}`" for f in files]),
+            quote=True
+        )
 
         
 @app.on_message(filters.command("tasks"))
