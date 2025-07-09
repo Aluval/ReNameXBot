@@ -12,7 +12,7 @@ START_TIME = datetime.datetime.now()
 
 # Logging setup
 logging.basicConfig(
-    filename='PixelPulseBot.txt',
+    filename='ReNameXBot.txt',
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
