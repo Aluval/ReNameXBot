@@ -110,32 +110,34 @@ async def get_file(client, message: Message):
     if len(message.command) < 2:
         return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
-    # Clean input (remove @username or extra symbols)
     raw_input = message.text.split(None, 1)[1].strip()
     filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
 
-    # 🔄 Send temporary wait message
-    wait_msg = await message.reply("🔎 Searching your saved files...")
+    # 1️⃣ Show searching message immediately
+    status_msg = await message.reply("🔎 Searching your saved files...")
 
-    # Get saved files
+    # 2️⃣ Fetch file list
     files = get_user_files(uid)
 
     if not files:
-        await wait_msg.delete()
-        return await message.reply("❗ You don’t have any files saved.")
+        await status_msg.edit("❗ You don’t have any files saved.")
+        return
 
-    # 🔍 Search for partial filename match
+    # 3️⃣ Search match (case insensitive)
     match = next((f["path"] for f in files if filename in f["name"].lower()), None)
 
+    # 4️⃣ If found, upload the file and update message
     if match and os.path.exists(match):
-        await wait_msg.delete()
-        return await message.reply_document(match)
+        await status_msg.edit("📤 Uploading your file... Please wait.")
+        try:
+            await message.reply_document(match)
+            await status_msg.delete()  # Delete status after successful upload
+        except Exception as e:
+            await status_msg.edit(f"❌ Upload failed: `{e}`")
     else:
-        await wait_msg.delete()
-        return await message.reply(
+        await status_msg.edit(
             f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
-            "\n".join([f"`{f['name']}`" for f in files]),
-            quote=True
+            "\n".join([f"`{f['name']}`" for f in files])
         )
         
 @app.on_message(filters.command("tasks"))
@@ -209,30 +211,6 @@ async def setting(client, message):
     ])
     await message.reply("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
 
-"""
-@app.on_message(filters.command("settings"))
-async def setting(client, message):
-    user_id = message.from_user.id
-    s = get_settings(user_id)
-    markup = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss"),
-            InlineKeyboardButton(f"🧮 Count: {s.get('count')}", callback_data="noop")
-        ],
-        [
-            InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
-            InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")
-        ],
-        [
-            InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
-        ],
-        [
-            InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
-            InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-        ]
-    ])
-    await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
-"""
         
 @app.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
@@ -329,64 +307,6 @@ async def cb_settings(client, cb):
         else:
             print("[Edit Error]", e)
 
-"""
-@app.on_callback_query()
-async def cb_settings(client, cb):
-    uid = cb.from_user.id
-    data = get_settings(uid)
-
-    if cb.data == "toggle_ss":
-        update_settings(uid, "screenshot", not data.get("screenshot", False))
-    elif cb.data == "toggle_prefix":
-        update_settings(uid, "prefix_enabled", not data.get("prefix_enabled", True))
-    elif cb.data == "toggle_type":
-        new_type = "video" if data.get("rename_type") == "doc" else "doc"
-        update_settings(uid, "rename_type", new_type)
-    elif cb.data == "show_prefix":
-        await cb.answer()
-        return await cb.message.reply(f"📎 Current Prefix:\n{data.get('prefix_text', '-')}")
-    elif cb.data == "show_caption":
-        cap = get_caption(uid) or "None"
-        await cb.answer()
-        return await cb.message.reply(f"📄 Current Custom Caption:\n{cap}")
-    elif cb.data == "thumb_menu":
-        await cb.message.edit("🖼️ Thumbnail Options:", reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("📌 Send Photo to Set", callback_data="noop")],
-            [InlineKeyboardButton("🗑️ Remove Thumbnail", callback_data="remove_thumb")]
-        ]))
-        return await cb.answer()
-    elif cb.data == "remove_thumb":
-        clear_thumbnail(uid)
-        await cb.answer("✅ Thumbnail removed")
-        return await start(client, cb.message)
-
-    try:
-        new_data = get_settings(uid)
-        markup = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss"),
-                InlineKeyboardButton(f"🧮 Count: {new_data.get('count')}", callback_data="noop")
-            ],
-            [
-                InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
-                InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")
-            ],
-            [
-                InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")
-            ],
-            [
-                InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
-                InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-            ]
-        ])
-        await cb.message.edit("⚙️ Customize your bot settings:", reply_markup=markup)
-        await cb.answer()
-    except Exception as e:
-        if "MESSAGE_NOT_MODIFIED" in str(e):
-            await cb.answer("⚠️ No changes to update.")
-        else:
-            print("[Edit Error]", e)
-"""
 
 @app.on_message(filters.command("clear") & filters.user(ADMIN))
 async def clear_database_handler(client: Client, msg: Message):
