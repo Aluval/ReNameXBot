@@ -5,19 +5,16 @@ import psutil
 import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from config import BOT_TOKEN, INFO_PIC, SUPPORT_GROUP, UPDATES_CHANNEL
-from config import *
-# Start time for uptime
+from config import BOT_TOKEN, INFO_PIC, SUNRISES_PIC, SUPPORT_GROUP, UPDATES_CHANNEL, ADMIN
+
 START_TIME = datetime.datetime.now()
 
-# Logging setup
 logging.basicConfig(
     filename='ReNameXBot.txt',
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 # /start command
 @Client.on_message(filters.command("start"))
 async def start_command(client: Client, message: Message):
@@ -77,16 +74,15 @@ async def about_command(client: Client, message: Message):
         "Powered by: Pyrogram + MongoDB"
     )
 
-# /ping command
+# /ping
 @Client.on_message(filters.command("ping"))
 async def ping_command(client: Client, message: Message):
     start = time.time()
     temp = await message.reply("🏓 Pinging...")
     end = time.time()
-    duration = (end - start) * 1000
-    await temp.edit(f"🏓 Pong! `{duration:.2f}ms`")
+    await temp.edit(f"🏓 Pong! `{(end - start) * 1000:.2f}ms`")
 
-# /stats command
+# /stats
 @Client.on_message(filters.command("stats"))
 async def stats_command(client: Client, message: Message):
     uptime = datetime.datetime.now() - START_TIME
@@ -115,7 +111,7 @@ async def stats_command(client: Client, message: Message):
     await message.reply_photo(INFO_PIC, caption=stats_text, reply_markup=buttons)
 
 # /logs command (Admin only)
-@Client.on_message(filters.command("logs")  & filters.chat(ADMIN))
+@Client.on_message(filters.command("logs") & filters.user(ADMIN))
 async def logs_command(client: Client, message: Message):
     if message.from_user.id not in get_admins():
         return await message.reply("❌ You are not authorized to access logs.")
@@ -124,14 +120,13 @@ async def logs_command(client: Client, message: Message):
     except Exception as e:
         await message.reply(f"❗ Error: `{e}`")
 
-  
-
-@Client.on_callback_query()
+# CALLBACK QUERY HANDLER for start/help/about/stats
+@Client.on_callback_query(filters.regex("^(start|about|help|refresh_stats)$"))
 async def callback_handler(client: Client, cb: CallbackQuery):
     data = cb.data
 
     if data == "about":
-        await cb.message.edit_text(
+        return await cb.message.edit_text(
             "**ℹ️ About ReNameXBot**\n\n"
             "➕ Rename files with prefix\n"
             "🖼️ Add thumbnails\n"
@@ -144,7 +139,7 @@ async def callback_handler(client: Client, cb: CallbackQuery):
         )
 
     elif data == "help":
-        await cb.message.edit_text(
+        return await cb.message.edit_text(
             "**🛠 Help Panel**\n\n"
             "`/rename newname.ext`\n"
             "`/setprefix <text>`\n"
@@ -163,7 +158,6 @@ async def callback_handler(client: Client, cb: CallbackQuery):
     elif data == "refresh_stats":
         uptime = datetime.datetime.now() - START_TIME
         uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
-
         disk = psutil.disk_usage('/')
         cpu = psutil.cpu_percent()
         ram = psutil.virtual_memory().percent
@@ -183,18 +177,15 @@ async def callback_handler(client: Client, cb: CallbackQuery):
                 InlineKeyboardButton("💬 Support", url=SUPPORT_GROUP)
             ]
         ])
-
         try:
             await cb.message.edit_text(stats_text, reply_markup=buttons)
             await cb.answer("✅ Stats refreshed!")
         except Exception as e:
             await cb.answer("⚠️ Failed to refresh.", show_alert=True)
-            print("Edit error:", e)
 
     elif data == "start":
-        await start_command(client, cb.message)
+        return await start_command(client, cb.message)
 
-# ✅ Entry point
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
