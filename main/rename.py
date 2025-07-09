@@ -4,7 +4,7 @@ import re
 import time
 import subprocess
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from main.db import (
     get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
     update_caption, get_caption, get_admins, is_admin_user,
