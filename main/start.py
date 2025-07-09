@@ -33,7 +33,7 @@ async def start_command(client: Client, message: Message):
     ])
 
     await message.reply_photo(
-        photo=INFO_PIC,
+        photo=SUNRISES_PIC,
         caption=(
             "**👋 Welcome to ReNameXBot!**\n\n"
             "📁 Rename any document/video using:\n"
