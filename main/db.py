@@ -1,5 +1,3 @@
-# ✅ db.py
-
 from pymongo import MongoClient
 import time
 from config import MONGO_URL
@@ -19,7 +17,8 @@ DEFAULT_SETTINGS = {
     "count": 3,
     "rename_type": "doc",
     "prefix_enabled": True,
-    "prefix_text": "@sunriseseditsoffical6 -"
+    "prefix_text": "@sunriseseditsoffical6 -",
+    "metadata": "Video | Audio | Subtitle"  # ✅ default metadata
 }
 
 def get_settings(user_id):
@@ -27,7 +26,7 @@ def get_settings(user_id):
     if not data:
         settings_col.insert_one({"_id": user_id, **DEFAULT_SETTINGS})
         return DEFAULT_SETTINGS.copy()
-    return data
+    return {**DEFAULT_SETTINGS, **data}  # merge with defaults
 
 def update_settings(user_id, key, value):
     settings_col.update_one({"_id": user_id}, {"$set": {key: value}}, upsert=True)
