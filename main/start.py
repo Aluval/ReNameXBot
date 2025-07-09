@@ -5,7 +5,6 @@ import psutil
 import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from db import get_admins
 from config import BOT_TOKEN, INFO_PIC, SUPPORT_GROUP, UPDATES_CHANNEL
 from config import *
 # Start time for uptime
