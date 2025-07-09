@@ -16,6 +16,7 @@ API_HASH = os.environ.get("API_HASH", "191bf5ae7a6c39771e7b13cf4ffd1279")
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "7097361755:AAHUd9LI4_JoAj57WfGbYVhG0msao8d04ck")
 ADMIN = int(os.environ.get("ADMIN", '6469754522'))
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+MONGO_URL = "mongodb+srv://HARSHA24:HARSHA24@cluster0.sxaj8up.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 SUNRISES_PIC= "https://envs.sh/u0Z.jpg/IMG20250701161.jpg" # Replace with your Telegraph link - Start Pic
 INFO_PIC= "https://envs.sh/u05.jpg/IMG20250701173.jpg" # Replace with your Telegraph link - Information 
 UPDATES_CHANNEL = os.getenv("UPDATES_CHANNEL", "https://t.me/Sunrises24BotUpdates") # Replace with your Updates link
