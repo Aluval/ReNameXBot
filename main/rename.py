@@ -15,6 +15,10 @@ from config import *
 
 
 
+
+
+
+
 def change_video_metadata(input_path, video_title, audio_title, subtitle_title, output_path):
     command = [
         'ffmpeg',
@@ -89,7 +93,7 @@ async def rename_file(client, message: Message):
 
         output_path = os.path.join(DOWNLOAD_DIR, f"meta_{new_name}")
 
-        if rename_type == "video" and new_name.lower().endswith((".mp4", ".mkv", ".mov")) and any([video_title, audio_title, subtitle_title]):
+        if rename_type == "video" and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
             try:
                 change_video_metadata(file_path, video_title, audio_title, subtitle_title, output_path)
                 os.remove(file_path)
@@ -129,6 +133,20 @@ async def rename_file(client, message: Message):
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
 
+
+@Client.on_message(filters.command("setmeta"))
+async def set_meta_command(client, message):
+    uid = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: /setmeta <video title | audio title | subtitle>")
+    try:
+        meta = message.text.split(None, 1)[1].strip()
+        if meta.count("|") != 2:
+            return await message.reply("❗ Use format: `video title | audio title | subtitle`")
+        update_settings(uid, "metadata", meta)
+        await message.reply("✅ Metadata updated.")
+    except Exception as e:
+        await message.reply(f"❗ Error: {e}")
 
 
 
