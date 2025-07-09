@@ -392,7 +392,7 @@ async def cb_settings(client, cb):
 @app.on_message(filters.command("clear") & filters.user(ADMIN))
 async def clear_database_handler(client: Client, msg: Message):
     try:
-        db.clear_database()  # No await here
+        clear_database()  # ✅ Call the imported function directly
         await msg.reply_text("Old database collections have been cleared ✅.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
