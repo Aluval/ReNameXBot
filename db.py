@@ -96,3 +96,11 @@ def get_user_files(user_id):
 
 def clear_user_files(user_id):
     files_col.delete_one({"_id": user_id})
+
+def clear_database(self):
+    await self.settings_col.drop()
+    await self.thumbs_col.drop()
+    await self.captions_col.drop()
+    await self.admin_col.drop()
+    await self.tasks_col.drop()
+    await self.files_col.drop()
