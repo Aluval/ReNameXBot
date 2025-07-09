@@ -12,6 +12,45 @@ from main.db import (
 from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
 
+# ✅ rename.py (Full Integration: Metadata in /settings only)
+
+import os
+import re
+import time
+import subprocess
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from main.db import (
+    get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
+    update_caption, get_caption, get_admins, is_admin_user,
+    add_task, get_user_tasks, remove_task, save_file, get_saved_file, get_user_files, clear_database
+)
+from main.utils import progress_bar, take_screenshots, cleanup
+from config import *
+
+
+def change_video_metadata(input_path, video_title, audio_title, subtitle_title, output_path):
+    command = [
+        'ffmpeg',
+        '-i', input_path,
+        '-metadata', f'title={video_title}',
+        '-metadata:s:v', f'title={video_title}',
+        '-metadata:s:a', f'title={audio_title}',
+        '-metadata:s:s', f'title={subtitle_title}',
+        '-map', '0:v?',
+        '-map', '0:a?',
+        '-map', '0:s?',
+        '-c:v', 'copy',
+        '-c:a', 'copy',
+        '-c:s', 'copy',
+        output_path,
+        '-y'
+    ]
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = process.communicate()
+    if process.returncode != 0:
+        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
 
 @Client.on_message(filters.command("rename"))
 async def rename_file(client, message: Message):
@@ -21,6 +60,7 @@ async def rename_file(client, message: Message):
         rename_type = settings.get("rename_type", "doc")
         prefix_on = settings.get("prefix_enabled", True)
         prefix_text = settings.get("prefix_text", "")
+        metadata = settings.get("metadata", " | | ")
         caption_custom = get_caption(user_id)
 
         if len(message.command) >= 2:
@@ -56,6 +96,18 @@ async def rename_file(client, message: Message):
         )
         await task["message"].edit("✅ Download complete.")
 
+        video_title, audio_title, subtitle_title = map(str.strip, metadata.split("|"))
+        output_path = os.path.join(DOWNLOAD_DIR, f"meta_{new_name}")
+
+        if rename_type == "video" and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
+            try:
+                change_video_metadata(file_path, video_title, audio_title, subtitle_title, output_path)
+                os.remove(file_path)
+                file_path = output_path
+            except Exception as e:
+                await task["message"].edit(f"❌ Metadata Error: {e}")
+                return
+
         caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
         task = {
             "message": await message.reply("📤 Starting upload..."),
@@ -86,6 +138,28 @@ async def rename_file(client, message: Message):
 
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
+
+
+
+
+
+# ✅ You can add a /setmeta command optionally if needed:
+@Client.on_message(filters.command("setmeta"))
+async def set_meta_command(client, message):
+    uid = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: /setmeta <video title | audio title | subtitle>")
+    try:
+        meta = message.text.split(None, 1)[1].strip()
+        if meta.count("|") != 2:
+            return await message.reply("❗ Use format: `video title | audio title | subtitle`")
+        update_settings(uid, "metadata", meta)
+        await message.reply("✅ Metadata updated.")
+    except Exception as e:
+        await message.reply(f"❗ Error: {e}")
+        
+
+
 
 
 @Client.on_message(filters.command("getfile"))
@@ -192,7 +266,8 @@ async def setting(client, message):
         [
             InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
             InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-        ]
+        ],
+        [InlineKeyboardButton("📊 View Metadata", callback_data="show_metadata")]
     ])
     await message.reply("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
 
@@ -262,6 +337,15 @@ async def cb_settings(client, cb):
         clear_thumbnail(uid)
         await cb.answer("✅ Thumbnail removed")
         return await start(client, cb.message)
+    elif cb.data == "show_metadata":
+    meta_raw = get_settings(uid).get("metadata", " | | ")
+    try:
+        video, audio, subtitle = map(str.strip, meta_raw.split("|"))
+    except:
+        video, audio, subtitle = "-", "-", "-"
+    await cb.answer()
+    await cb.message.reply(f"🎬 Video Title: `{video}`\n🔊 Audio Title: `{audio}`\n💬 Subtitle Title: `{subtitle}`")
+    
 
     # Refresh settings panel
     new_data = get_settings(uid)
@@ -281,7 +365,8 @@ async def cb_settings(client, cb):
         [
             InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
             InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-        ]
+        ],
+        [InlineKeyboardButton("📊 View Metadata", callback_data="show_metadata")]
     ])
     try:
         await cb.message.edit("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
