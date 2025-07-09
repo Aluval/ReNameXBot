@@ -191,10 +191,18 @@ async def setting(client, message):
         [
             InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
             InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-        ]
+        ],
+        [InlineKeyboardButton("Close ❌", callback_data="del")]
     ])
     await message.reply("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
 
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
+@Client.on_callback_query(filters.regex("del"))
+async def closed(bot, msg):
+    try:
+        await msg.message.delete()
+    except:
+        return
         
 @Client.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
@@ -280,7 +288,8 @@ async def cb_settings(client, cb):
         [
             InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
             InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-        ]
+        ],
+        [InlineKeyboardButton("Close ❌", callback_data="del")]
     ])
     try:
         await cb.message.edit("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
