@@ -12,7 +12,7 @@ from main.db import (
 from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
 
-
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_message(filters.command("rename"))
 async def rename_file(client, message: Message):
     user_id = message.from_user.id
