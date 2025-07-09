@@ -105,39 +105,38 @@ async def rename_file(client, message: Message):
 
 @app.on_message(filters.command("getfile"))
 async def get_file(client, message: Message):    
-
     uid = message.from_user.id
 
     if len(message.command) < 2:
         return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
-    # Clean input (remove @username - or extra spaces)
+    # Clean input (remove @username or extra symbols)
     raw_input = message.text.split(None, 1)[1].strip()
     filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
 
-    # 🔍 Fetch user files and show them (for debug)
+    # 🔄 Send temporary wait message
+    wait_msg = await message.reply("🔎 Searching your saved files...")
+
+    # Get saved files
     files = get_user_files(uid)
 
     if not files:
+        await wait_msg.delete()
         return await message.reply("❗ You don’t have any files saved.")
 
-    debug_file_names = "\n".join([f"{i+1}. {f['name']}" for i, f in enumerate(files)])
-    print("User files:\n" + debug_file_names)  # DEBUG LOG
-    print("Searching for:", filename)  # DEBUG LOG
-
-    # Check partial match
+    # 🔍 Search for partial filename match
     match = next((f["path"] for f in files if filename in f["name"].lower()), None)
 
     if match and os.path.exists(match):
+        await wait_msg.delete()
         return await message.reply_document(match)
     else:
-        # Show fallback
+        await wait_msg.delete()
         return await message.reply(
             f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
             "\n".join([f"`{f['name']}`" for f in files]),
             quote=True
         )
-
         
 @app.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
