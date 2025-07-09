@@ -10,7 +10,6 @@ db = client["rename_bot"]
 settings_col = db["settings"]
 thumbs_col = db["thumbnails"]
 captions_col = db["captions"]
-admin_col = db["admins"]
 tasks_col = db["tasks"]
 files_col = db["user_files"]
 
@@ -48,12 +47,6 @@ def update_caption(user_id, text):
 def get_caption(user_id):
     data = captions_col.find_one({"_id": user_id})
     return data["caption"] if data else None
-
-def get_admins():
-    return [admin["_id"] for admin in admin_col.find()]
-
-def is_admin_user(user_id):
-    return admin_col.find_one({"_id": user_id}) is not None
 
 def get_user_tasks(user_id):
     data = tasks_col.find_one({"_id": user_id})
@@ -101,6 +94,5 @@ def clear_database():
     settings_col.drop()
     thumbs_col.drop()
     captions_col.drop()
-    admin_col.drop()
     tasks_col.drop()
     files_col.drop()
