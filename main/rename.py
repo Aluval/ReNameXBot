@@ -13,6 +13,8 @@ from main.db import (
 from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
 
+
+
 def change_video_metadata(input_path, video_title, audio_title, subtitle_title, output_path):
     command = [
         'ffmpeg',
@@ -34,6 +36,7 @@ def change_video_metadata(input_path, video_title, audio_title, subtitle_title, 
     stdout, stderr = process.communicate()
     if process.returncode != 0:
         raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
+
 
 @Client.on_message(filters.command("rename"))
 async def rename_file(client, message: Message):
@@ -79,10 +82,14 @@ async def rename_file(client, message: Message):
         )
         await task["message"].edit("✅ Download complete.")
 
-        video_title, audio_title, subtitle_title = map(str.strip, metadata.split("|"))
+        try:
+            video_title, audio_title, subtitle_title = map(str.strip, metadata.split("|"))
+        except:
+            video_title = audio_title = subtitle_title = "Renamed by Bot"
+
         output_path = os.path.join(DOWNLOAD_DIR, f"meta_{new_name}")
 
-        if rename_type == "video" and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
+        if rename_type == "video" and new_name.lower().endswith((".mp4", ".mkv", ".mov")) and any([video_title, audio_title, subtitle_title]):
             try:
                 change_video_metadata(file_path, video_title, audio_title, subtitle_title, output_path)
                 os.remove(file_path)
@@ -122,6 +129,12 @@ async def rename_file(client, message: Message):
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
 
+
+
+
+
+
+
 @Client.on_message(filters.command("setmeta"))
 async def set_meta_command(client, message):
     uid = message.from_user.id
@@ -135,3 +148,109 @@ async def set_meta_command(client, message):
         await message.reply("✅ Metadata updated.")
     except Exception as e:
         await message.reply(f"❗ Error: {e}")
+
+
+
+
+@Client.on_message(filters.command("settings"))
+async def setting(client, message):
+    user_id = message.from_user.id
+    s = get_settings(user_id)
+    count = s.get("count", 3)
+
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss")],
+        [
+            InlineKeyboardButton("➖", callback_data="decrease_count"),
+            InlineKeyboardButton(f"🧶 Count: {count}", callback_data="noop"),
+            InlineKeyboardButton("➕", callback_data="increase_count")
+        ],
+        [
+            InlineKeyboardButton(f"📌 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+            InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")
+        ],
+        [InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")],
+        [
+            InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+            InlineKeyboardButton("📄 Caption", callback_data="show_caption")
+        ],
+        [InlineKeyboardButton("📊 View Metadata", callback_data="show_metadata")]
+    ])
+    await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
+
+@Client.on_callback_query()
+async def cb_settings(client, cb: CallbackQuery):
+    uid = cb.from_user.id
+    data = get_settings(uid)
+
+    if cb.data == "toggle_ss":
+        update_settings(uid, "screenshot", not data.get("screenshot", False))
+    elif cb.data == "toggle_prefix":
+        update_settings(uid, "prefix_enabled", not data.get("prefix_enabled", True))
+    elif cb.data == "toggle_type":
+        new_type = "video" if data.get("rename_type") == "doc" else "doc"
+        update_settings(uid, "rename_type", new_type)
+    elif cb.data == "increase_count":
+        current = data.get("count", 3)
+        if current < 20:
+            update_settings(uid, "count", current + 1)
+    elif cb.data == "decrease_count":
+        current = data.get("count", 3)
+        if current > 1:
+            update_settings(uid, "count", current - 1)
+    elif cb.data == "show_prefix":
+        await cb.answer()
+        return await cb.message.reply(f"📌 Current Prefix:\n`{data.get('prefix_text', '-')}`")
+    elif cb.data == "show_caption":
+        cap = get_caption(uid) or "None"
+        await cb.answer()
+        return await cb.message.reply(f"📄 Current Custom Caption:\n{cap}")
+    elif cb.data == "thumb_menu":
+        await cb.message.edit("🖼️ Thumbnail Options:", reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📌 Send Photo to Set", callback_data="noop")],
+            [InlineKeyboardButton("🗑️ Remove Thumbnail", callback_data="remove_thumb")]
+        ]))
+        return await cb.answer()
+    elif cb.data == "remove_thumb":
+        clear_thumbnail(uid)
+        await cb.answer("✅ Thumbnail removed")
+        return await start(client, cb.message)
+    elif cb.data == "show_metadata":
+        meta_raw = get_settings(uid).get("metadata", " | | ")
+        try:
+            video, audio, subtitle = map(str.strip, meta_raw.split("|"))
+        except:
+            video, audio, subtitle = "-", "-", "-"
+        await cb.answer()
+        await cb.message.reply(f"🎬 Video Title: `{video}`\n🔊 Audio Title: `{audio}`\n💬 Subtitle Title: `{subtitle}`")
+
+    # Refresh settings panel
+    new_data = get_settings(uid)
+    count = new_data.get("count", 3)
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="toggle_ss")],
+        [
+            InlineKeyboardButton("➖", callback_data="decrease_count"),
+            InlineKeyboardButton(f"🧮 Count: {count}", callback_data="noop"),
+            InlineKeyboardButton("➕", callback_data="increase_count")
+        ],
+        [
+            InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+            InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="toggle_type")
+        ],
+        [InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")],
+        [
+            InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
+            InlineKeyboardButton("📄 Caption", callback_data="show_caption")
+        ],
+        [InlineKeyboardButton("📊 View Metadata", callback_data="show_metadata")]
+    ])
+    try:
+        await cb.message.edit("⚙️ Customize your bot settings:", reply_markup=markup)
+        await cb.answer()
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await cb.answer("⚠️ No changes to update.")
+        else:
+            print("[Edit Error]", e)
+            
