@@ -1,10 +1,9 @@
-
 import os
 import re
 import time
-import subprocess
+import asyncio
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from main.db import (
     get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
     update_caption, get_caption, get_admins, is_admin_user,
@@ -12,34 +11,6 @@ from main.db import (
 )
 from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
-
-
-
-
-
-
-
-def change_video_metadata(input_path, video_title, audio_title, subtitle_title, output_path):
-    command = [
-        'ffmpeg',
-        '-i', input_path,
-        '-metadata', f'title={video_title}',
-        '-metadata:s:v', f'title={video_title}',
-        '-metadata:s:a', f'title={audio_title}',
-        '-metadata:s:s', f'title={subtitle_title}',
-        '-map', '0:v?',
-        '-map', '0:a?',
-        '-map', '0:s?',
-        '-c:v', 'copy',
-        '-c:a', 'copy',
-        '-c:s', 'copy',
-        output_path,
-        '-y'
-    ]
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr = process.communicate()
-    if process.returncode != 0:
-        raise Exception(f"FFmpeg error: {stderr.decode('utf-8')}")
 
 
 @Client.on_message(filters.command("rename"))
@@ -50,7 +21,6 @@ async def rename_file(client, message: Message):
         rename_type = settings.get("rename_type", "doc")
         prefix_on = settings.get("prefix_enabled", True)
         prefix_text = settings.get("prefix_text", "")
-        metadata = settings.get("metadata", " | | ")
         caption_custom = get_caption(user_id)
 
         if len(message.command) >= 2:
@@ -86,22 +56,6 @@ async def rename_file(client, message: Message):
         )
         await task["message"].edit("✅ Download complete.")
 
-        try:
-            video_title, audio_title, subtitle_title = map(str.strip, metadata.split("|"))
-        except:
-            video_title = audio_title = subtitle_title = "Renamed by Bot"
-
-        output_path = os.path.join(DOWNLOAD_DIR, f"meta_{new_name}")
-
-        if rename_type == "video" and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
-            try:
-                change_video_metadata(file_path, video_title, audio_title, subtitle_title, output_path)
-                os.remove(file_path)
-                file_path = output_path
-            except Exception as e:
-                await task["message"].edit(f"❌ Metadata Error: {e}")
-                return
-
         caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
         task = {
             "message": await message.reply("📤 Starting upload..."),
@@ -134,73 +88,148 @@ async def rename_file(client, message: Message):
             os.remove(thumb_path)
 
 
-@Client.on_message(filters.command("setmeta"))
-async def set_meta_command(client, message):
+@Client.on_message(filters.command("getfile"))
+async def get_file(client, message: Message):    
     uid = message.from_user.id
+
     if len(message.command) < 2:
-        return await message.reply("❗ Usage: /setmeta <video title | audio title | subtitle>")
+        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
+
+    raw_input = message.text.split(None, 1)[1].strip()
+    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
+
+    # 1️⃣ Show searching message immediately
+    status_msg = await message.reply("🔎 Searching your saved files...")
+
+    # 2️⃣ Fetch file list
+    files = get_user_files(uid)
+
+    if not files:
+        await status_msg.edit("❗ You don’t have any files saved.")
+        return
+
+    # 3️⃣ Search match (case insensitive)
+    match = next((f["path"] for f in files if filename in f["name"].lower()), None)
+
+    # 4️⃣ If found, upload the file and update message
+    if match and os.path.exists(match):
+        await status_msg.edit("📤 Uploading your file... Please wait.")
+        try:
+            await message.reply_document(match)
+            await status_msg.delete()  # Delete status after successful upload
+        except Exception as e:
+            await status_msg.edit(f"❌ Upload failed: `{e}`")
+    else:
+        await status_msg.edit(
+            f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
+            "\n".join([f"`{f['name']}`" for f in files])
+        )
+        
+@Client.on_message(filters.command("tasks"))
+async def list_tasks(client, message):
+    user = message.from_user
+    user_id = user.id
+    username = f"@{user.username}" if user.username else f"ID: {user.id}"
+
+    page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
+    tasks = get_user_tasks(user_id)
+    items_per_page = 5
+    start = (page - 1) * items_per_page
+    end = start + items_per_page
+    paged_tasks = tasks[start:end]
+
+    if not paged_tasks:
+        return await message.reply("❗ No tasks found on this page.")
+
+    text = f"📋 **Your Tasks ({username}):**\n\n"
+    for i, task in enumerate(paged_tasks, start=start + 1):
+        text += f"{i}. `{task}`\n\n"  # <-- DOUBLE NEWLINE for spacing
+
+    buttons = []
+    if page > 1:
+        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"task_page:{page - 1}"))
+    if end < len(tasks):
+        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"task_page:{page + 1}"))
+
+    if buttons:
+        await message.reply(text, reply_markup=InlineKeyboardMarkup([buttons]))
+    else:
+        await message.reply(text)
+
+
+
+@Client.on_message(filters.command("removetask") & filters.user(ADMIN))
+async def remove_user_task(client, message):
+    if len(message.command) < 3:
+        return await message.reply("❗ Usage: /removetask <user_id> <task_index>")
     try:
-        meta = message.text.split(None, 1)[1].strip()
-        if meta.count("|") != 2:
-            return await message.reply("❗ Use format: `video title | audio title | subtitle`")
-        update_settings(uid, "metadata", meta)
-        await message.reply("✅ Metadata updated.")
+        user_id = int(message.command[1])
+        index = int(message.command[2]) - 1
+        if remove_task(user_id, index):
+            await message.reply(f"✅ Task {index + 1} removed for user {user_id}.")
+        else:
+            await message.reply("❗ Invalid task index.")
     except Exception as e:
         await message.reply(f"❗ Error: {e}")
-
-
-
-
-
-
-@Client.on_message(filters.command("setmeta"))
-async def set_meta_command(client, message):
-    uid = message.from_user.id
-    if len(message.command) < 2:
-        return await message.reply("❗ Usage: /setmeta <video title | audio title | subtitle>")
-    try:
-        meta = message.text.split(None, 1)[1].strip()
-        if meta.count("|") != 2:
-            return await message.reply("❗ Use format: `video title | audio title | subtitle`")
-        update_settings(uid, "metadata", meta)
-        await message.reply("✅ Metadata updated.")
-    except Exception as e:
-        await message.reply(f"❗ Error: {e}")
-
-
-
 
 @Client.on_message(filters.command("settings"))
 async def setting(client, message):
     user_id = message.from_user.id
     s = get_settings(user_id)
     count = s.get("count", 3)
-
     markup = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="toggle_ss")],
         [
             InlineKeyboardButton("➖", callback_data="decrease_count"),
-            InlineKeyboardButton(f"🧶 Count: {count}", callback_data="noop"),
+            InlineKeyboardButton(f"🧮 Count: {count}", callback_data="noop"),
             InlineKeyboardButton("➕", callback_data="increase_count")
         ],
         [
-            InlineKeyboardButton(f"📌 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
+            InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="toggle_prefix"),
             InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="toggle_type")
         ],
         [InlineKeyboardButton("🖼️ Thumbnail", callback_data="thumb_menu")],
         [
             InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
             InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-        ],
-        [InlineKeyboardButton("📊 View Metadata", callback_data="show_metadata")]
+        ]
     ])
-    await message.reply("⚙️ Customize your bot settings:", reply_markup=markup)
+    await message.reply("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
+
+        
+@Client.on_message(filters.photo & filters.private)
+async def save_thumb(client, message):
+    user_id = message.from_user.id
+    file_id = message.photo.file_id
+    set_thumbnail(user_id, file_id)
+    await message.reply_photo(file_id, caption="✅ Thumbnail saved.")
+    await start(client, message)
+
+
+@Client.on_message(filters.command("setprefix"))
+async def set_prefix_command(client, message):
+    uid = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: /setprefix <text>")
+    prefix = message.text.split(None, 1)[1].strip()
+    update_settings(uid, "prefix_text", prefix)
+    await message.reply(f"✅ Prefix updated to:\n{prefix}")
+
+@Client.on_message(filters.command("setcaption"))
+async def set_caption_command(client, message):
+    uid = message.from_user.id
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: /setcaption <text>")
+    cap = message.text.split(None, 1)[1].strip()
+    update_caption(uid, cap)
+    await message.reply("✅ Custom caption updated!")
 
 @Client.on_callback_query()
-async def cb_settings(client, cb: CallbackQuery):
+async def cb_settings(client, cb):
     uid = cb.from_user.id
     data = get_settings(uid)
 
+    # Logic toggles
     if cb.data == "toggle_ss":
         update_settings(uid, "screenshot", not data.get("screenshot", False))
     elif cb.data == "toggle_prefix":
@@ -218,7 +247,7 @@ async def cb_settings(client, cb: CallbackQuery):
             update_settings(uid, "count", current - 1)
     elif cb.data == "show_prefix":
         await cb.answer()
-        return await cb.message.reply(f"📌 Current Prefix:\n`{data.get('prefix_text', '-')}`")
+        return await cb.message.reply(f"📎 Current Prefix:\n{data.get('prefix_text', '-')}")
     elif cb.data == "show_caption":
         cap = get_caption(uid) or "None"
         await cb.answer()
@@ -233,14 +262,6 @@ async def cb_settings(client, cb: CallbackQuery):
         clear_thumbnail(uid)
         await cb.answer("✅ Thumbnail removed")
         return await start(client, cb.message)
-    elif cb.data == "show_metadata":
-        meta_raw = get_settings(uid).get("metadata", " | | ")
-        try:
-            video, audio, subtitle = map(str.strip, meta_raw.split("|"))
-        except:
-            video, audio, subtitle = "-", "-", "-"
-        await cb.answer()
-        await cb.message.reply(f"🎬 Video Title: `{video}`\n🔊 Audio Title: `{audio}`\n💬 Subtitle Title: `{subtitle}`")
 
     # Refresh settings panel
     new_data = get_settings(uid)
@@ -260,15 +281,25 @@ async def cb_settings(client, cb: CallbackQuery):
         [
             InlineKeyboardButton("🔤 Prefix Text", callback_data="show_prefix"),
             InlineKeyboardButton("📄 Caption", callback_data="show_caption")
-        ],
-        [InlineKeyboardButton("📊 View Metadata", callback_data="show_metadata")]
+        ]
     ])
     try:
-        await cb.message.edit("⚙️ Customize your bot settings:", reply_markup=markup)
+        await cb.message.edit("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
         await cb.answer()
     except Exception as e:
         if "MESSAGE_NOT_MODIFIED" in str(e):
             await cb.answer("⚠️ No changes to update.")
         else:
             print("[Edit Error]", e)
-            
+
+@Client.on_message(filters.command("clear") & filters.user(ADMIN))
+async def clear_database_handler(client: Client, msg: Message):
+    try:
+        clear_database()  # ✅ Call the imported function directly
+        await msg.reply_text("Old database collections have been cleared ✅.")
+    except Exception as e:
+        await msg.reply_text(f"An error occurred: {e}")
+        
+if __name__ == '__main__':
+    app = Client("my_bot", bot_token=BOT_TOKEN)
+    app.run()
