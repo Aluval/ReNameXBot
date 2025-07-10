@@ -16,6 +16,16 @@ logging.basicConfig(
 )
 
 # /start command
+from pyrogram import Client, filters
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+import datetime
+from datetime import timedelta
+import psutil
+
+from config import START_TIME, SUNRISES_PIC, UPDATES_CHANNEL, SUPPORT_GROUP
+
+
+# /start command
 @Client.on_message(filters.command("start"))
 async def start_command(client: Client, message: Message):
     buttons = InlineKeyboardMarkup([
@@ -28,7 +38,6 @@ async def start_command(client: Client, message: Message):
             InlineKeyboardButton("💬 Support", url=SUPPORT_GROUP)
         ]
     ])
-
     await message.reply_photo(
         photo=SUNRISES_PIC,
         caption=(
@@ -45,6 +54,111 @@ async def start_command(client: Client, message: Message):
         reply_markup=buttons
     )
 
+
+# Callback Dispatcher Map
+async def about_panel(cb: CallbackQuery):
+    await cb.message.edit_text(
+        "**ℹ️ About ReNameXBot**\n\n"
+        "➕ Rename files with prefix\n"
+        "🖼️ Add thumbnails\n"
+        "📸 Generate video screenshots\n"
+        "🧠 Caption customization\n\n"
+        "Built with ❤️ by @Sunrises_24",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back", callback_data="start")]
+        ])
+    )
+
+
+async def help_panel(cb: CallbackQuery):
+    await cb.message.edit_text(
+        "**🛠 Help Panel**\n\n"
+        "`/rename newname.ext`\n"
+        "`/setprefix <text>`\n"
+        "`/setcaption <text>`\n"
+        "`/getfile <filename>`\n"
+        "`/settings`\n"
+        "`/tasks`\n"
+        "`/clear`\n"
+        "`/stats`\n"
+        "`/logs` (admin only)",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back", callback_data="start")]
+        ])
+    )
+
+# /stats
+@Client.on_message(filters.command("stats"))
+async def stats_command(client: Client, message: Message):
+    uptime = datetime.datetime.now() - START_TIME
+    uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
+
+    disk = psutil.disk_usage('/')
+    cpu = psutil.cpu_percent()
+    ram = psutil.virtual_memory().percent
+
+    stats_text = (
+        "**📊 Bot & Server Stats:**\n\n"
+        f"⏱ Uptime: `{uptime_str}`\n"
+        f"💾 Disk Used: `{disk.used / (1024**3):.2f} GB` / `{disk.total / (1024**3):.2f} GB`\n"
+        f"🧠 RAM Usage: `{ram}%`\n"
+        f"⚙️ CPU Load: `{cpu}%`\n"
+    )
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")],
+        [
+            InlineKeyboardButton("📢 Updates", url=UPDATES_CHANNEL),
+            InlineKeyboardButton("💬 Support", url=SUPPORT_GROUP)
+        ]
+    ])
+
+    await message.reply_photo(INFO_PIC, caption=stats_text, reply_markup=buttons)
+
+async def refresh_stats(cb: CallbackQuery):
+    uptime = datetime.datetime.now() - START_TIME
+    uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
+    disk = psutil.disk_usage('/')
+    cpu = psutil.cpu_percent()
+    ram = psutil.virtual_memory().percent
+
+    stats_text = (
+        "**📊 Refreshed Stats:**\n\n"
+        f"⏱ Uptime: `{uptime_str}`\n"
+        f"💾 Disk Used: `{disk.used / (1024**3):.2f} GB` / `{disk.total / (1024**3):.2f} GB`\n"
+        f"🧠 RAM Usage: `{ram}%`\n"
+        f"⚙️ CPU Load: `{cpu}%`\n"
+    )
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")],
+        [
+            InlineKeyboardButton("📢 Updates", url=UPDATES_CHANNEL),
+            InlineKeyboardButton("💬 Support", url=SUPPORT_GROUP)
+        ]
+    ])
+    try:
+        await cb.message.edit_text(stats_text, reply_markup=buttons)
+        await cb.answer("✅ Stats refreshed!")
+    except Exception as e:
+        await cb.answer("⚠️ Failed to refresh.", show_alert=True)
+
+
+# Main unified callback handler
+@Client.on_callback_query(filters.regex("^(start|about|help|refresh_stats)$"))
+async def callback_handler(client: Client, cb: CallbackQuery):
+    callbacks = {
+        "about": about_panel,
+        "help": help_panel,
+        "refresh_stats": refresh_stats,
+        "start": lambda cb: start_command(client, cb.message)
+    }
+    handler = callbacks.get(cb.data)
+    if handler:
+        await handler(cb)
+    else:
+        await cb.answer("❌ Unknown action", show_alert=True)
+        
 # /help command
 @Client.on_message(filters.command("help"))
 async def help_command(client: Client, message: Message):
@@ -82,33 +196,6 @@ async def ping_command(client: Client, message: Message):
     end = time.time()
     await temp.edit(f"🏓 Pong! `{(end - start) * 1000:.2f}ms`")
 
-# /stats
-@Client.on_message(filters.command("stats"))
-async def stats_command(client: Client, message: Message):
-    uptime = datetime.datetime.now() - START_TIME
-    uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
-
-    disk = psutil.disk_usage('/')
-    cpu = psutil.cpu_percent()
-    ram = psutil.virtual_memory().percent
-
-    stats_text = (
-        "**📊 Bot & Server Stats:**\n\n"
-        f"⏱ Uptime: `{uptime_str}`\n"
-        f"💾 Disk Used: `{disk.used / (1024**3):.2f} GB` / `{disk.total / (1024**3):.2f} GB`\n"
-        f"🧠 RAM Usage: `{ram}%`\n"
-        f"⚙️ CPU Load: `{cpu}%`\n"
-    )
-
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")],
-        [
-            InlineKeyboardButton("📢 Updates", url=UPDATES_CHANNEL),
-            InlineKeyboardButton("💬 Support", url=SUPPORT_GROUP)
-        ]
-    ])
-
-    await message.reply_photo(INFO_PIC, caption=stats_text, reply_markup=buttons)
 
 # /logs command (Admin only)
 @Client.on_message(filters.command("logs") & filters.user(ADMIN))
@@ -120,71 +207,6 @@ async def logs_command(client: Client, message: Message):
     except Exception as e:
         await message.reply(f"❗ Error: `{e}`")
 
-# CALLBACK QUERY HANDLER for start/help/about/stats
-@Client.on_callback_query(filters.regex("^(start|about|help|refresh_stats)$"))
-async def callback_handler(client: Client, cb: CallbackQuery):
-    data = cb.data
-
-    if data == "about":
-        return await cb.message.edit_text(
-            "**ℹ️ About ReNameXBot**\n\n"
-            "➕ Rename files with prefix\n"
-            "🖼️ Add thumbnails\n"
-            "📸 Generate video screenshots\n"
-            "🧠 Caption customization\n\n"
-            "Built with ❤️ by @Sunrises_24",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="start")]
-            ])
-        )
-
-    elif data == "help":
-        return await cb.message.edit_text(
-            "**🛠 Help Panel**\n\n"
-            "`/rename newname.ext`\n"
-            "`/setprefix <text>`\n"
-            "`/setcaption <text>`\n"
-            "`/getfile <filename>`\n"
-            "`/settings`\n"
-            "`/tasks`\n"
-            "`/clear`\n"
-            "`/stats`\n"
-            "`/logs` (admin only)",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="start")]
-            ])
-        )
-
-    elif data == "refresh_stats":
-        uptime = datetime.datetime.now() - START_TIME
-        uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
-        disk = psutil.disk_usage('/')
-        cpu = psutil.cpu_percent()
-        ram = psutil.virtual_memory().percent
-
-        stats_text = (
-            "**📊 Refreshed Stats:**\n\n"
-            f"⏱ Uptime: `{uptime_str}`\n"
-            f"💾 Disk Used: `{disk.used / (1024**3):.2f} GB` / `{disk.total / (1024**3):.2f} GB`\n"
-            f"🧠 RAM Usage: `{ram}%`\n"
-            f"⚙️ CPU Load: `{cpu}%`\n"
-        )
-
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")],
-            [
-                InlineKeyboardButton("📢 Updates", url=UPDATES_CHANNEL),
-                InlineKeyboardButton("💬 Support", url=SUPPORT_GROUP)
-            ]
-        ])
-        try:
-            await cb.message.edit_text(stats_text, reply_markup=buttons)
-            await cb.answer("✅ Stats refreshed!")
-        except Exception as e:
-            await cb.answer("⚠️ Failed to refresh.", show_alert=True)
-
-    elif data == "start":
-        return await start_command(client, cb.message)
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
