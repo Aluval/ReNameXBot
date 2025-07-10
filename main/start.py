@@ -15,14 +15,7 @@ logging.basicConfig(
     level=logging.INFO
 )
 
-# /start command
-from pyrogram import Client, filters
-from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-import datetime
-from datetime import timedelta
-import psutil
 
-from config import START_TIME, SUNRISES_PIC, UPDATES_CHANNEL, SUPPORT_GROUP
 
 
 # /start command
