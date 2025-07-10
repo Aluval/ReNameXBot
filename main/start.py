@@ -18,7 +18,6 @@ logging.basicConfig(
 
 
 
-# /start command
 @Client.on_message(filters.command("start"))
 async def start_command(client: Client, message: Message):
     buttons = InlineKeyboardMarkup([
@@ -48,7 +47,6 @@ async def start_command(client: Client, message: Message):
     )
 
 
-# Callback Dispatcher Map
 async def about_panel(cb: CallbackQuery):
     await cb.message.edit_text(
         "**ℹ️ About ReNameXBot**\n\n"
@@ -80,33 +78,6 @@ async def help_panel(cb: CallbackQuery):
         ])
     )
 
-# /stats
-@Client.on_message(filters.command("stats"))
-async def stats_command(client: Client, message: Message):
-    uptime = datetime.datetime.now() - START_TIME
-    uptime_str = str(timedelta(seconds=int(uptime.total_seconds())))
-
-    disk = psutil.disk_usage('/')
-    cpu = psutil.cpu_percent()
-    ram = psutil.virtual_memory().percent
-
-    stats_text = (
-        "**📊 Bot & Server Stats:**\n\n"
-        f"⏱ Uptime: `{uptime_str}`\n"
-        f"💾 Disk Used: `{disk.used / (1024**3):.2f} GB` / `{disk.total / (1024**3):.2f} GB`\n"
-        f"🧠 RAM Usage: `{ram}%`\n"
-        f"⚙️ CPU Load: `{cpu}%`\n"
-    )
-
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")],
-        [
-            InlineKeyboardButton("📢 Updates", url=UPDATES_CHANNEL),
-            InlineKeyboardButton("💬 Support", url=SUPPORT_GROUP)
-        ]
-    ])
-
-    await message.reply_photo(INFO_PIC, caption=stats_text, reply_markup=buttons)
 
 async def refresh_stats(cb: CallbackQuery):
     uptime = datetime.datetime.now() - START_TIME
@@ -137,9 +108,8 @@ async def refresh_stats(cb: CallbackQuery):
         await cb.answer("⚠️ Failed to refresh.", show_alert=True)
 
 
-# Main unified callback handler
 @Client.on_callback_query(filters.regex("^(start|about|help|refresh_stats)$"))
-async def callback_handler(client: Client, cb: CallbackQuery):
+async def handle_start_callbacks(client: Client, cb: CallbackQuery):
     callbacks = {
         "about": about_panel,
         "help": help_panel,
@@ -151,6 +121,7 @@ async def callback_handler(client: Client, cb: CallbackQuery):
         await handler(cb)
     else:
         await cb.answer("❌ Unknown action", show_alert=True)
+
         
 # /help command
 @Client.on_message(filters.command("help"))
