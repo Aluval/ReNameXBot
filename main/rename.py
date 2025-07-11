@@ -13,7 +13,7 @@ from config import *
 
 
 
-# ✅ Reusable panel generator
+# ✅ Send Settings Panel
 async def send_settings_photo(client, target):
     user_id = target.from_user.id
     s = get_settings(user_id)
@@ -39,13 +39,18 @@ async def send_settings_photo(client, target):
     ])
 
     try:
-        await target.edit_caption("⚙️ Customize your bot settings:", reply_markup=markup)
+        # If CallbackQuery (has message_id), delete the old message
+        if hasattr(target, "message_id"):
+            await client.delete_messages(chat_id=target.chat.id, message_ids=target.message_id)
     except:
-        await target.reply_photo(
-            photo=INFO_PIC,
-            caption="⚙️ Customize your bot settings:",
-            reply_markup=markup
-        )
+        pass
+
+    await client.send_photo(
+        chat_id=target.chat.id,
+        photo=INFO_PIC,
+        caption="⚙️ Customize your bot settings:",
+        reply_markup=markup
+    )
 
 
 # ✅ /settings command
@@ -54,7 +59,7 @@ async def open_settings(client, message: Message):
     await send_settings_photo(client, message)
 
 
-# ✅ Callback handler
+# ✅ Callback handler for all setting buttons
 @Client.on_callback_query(filters.regex("^set_"))
 async def cb_settings_handler(client, cb: CallbackQuery):
     uid = cb.from_user.id
@@ -72,16 +77,18 @@ async def cb_settings_handler(client, cb: CallbackQuery):
         update_settings(uid, "rename_type", new_type)
 
     elif data == "set_increase_count":
-        if s.get("count", 3) < 20:
-            update_settings(uid, "count", s.get("count", 3) + 1)
+        count = s.get("count", 3)
+        if count < 20:
+            update_settings(uid, "count", count + 1)
 
     elif data == "set_decrease_count":
-        if s.get("count", 3) > 1:
-            update_settings(uid, "count", s.get("count", 3) - 1)
+        count = s.get("count", 3)
+        if count > 1:
+            update_settings(uid, "count", count - 1)
 
     elif data == "set_show_prefix":
         await cb.answer()
-        return await cb.message.reply(f"📎 Current Prefix:\n{s.get('prefix_text', '-')}")
+        return await cb.message.reply(f"📎 Current Prefix:\n{ s.get('prefix_text', '-') }")
 
     elif data == "set_show_caption":
         cap = get_caption(uid) or "None"
@@ -113,9 +120,13 @@ async def cb_settings_handler(client, cb: CallbackQuery):
             await cb.message.edit_caption("❌ Closed.")
         return await cb.answer()
 
-    # If none of the above, refresh settings panel
+    # ✅ Fallback: refresh panel
     await send_settings_photo(client, cb.message)
     await cb.answer()
+
+
+
+
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_message(filters.command("rename"))
