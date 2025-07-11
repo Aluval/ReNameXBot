@@ -203,13 +203,10 @@ async def ping_command(client: Client, message: Message):
 # /logs command (Admin only)
 @Client.on_message(filters.command("logs") & filters.user(ADMIN))
 async def logs_command(client: Client, message: Message):
-    if message.from_user.id not in get_admins():
-        return await message.reply("❌ You are not authorized to access logs.")
     try:
         await message.reply_document("ReNameXBot.txt", caption="📄 Bot Log File")
     except Exception as e:
         await message.reply(f"❗ Error: `{e}`")
-
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
