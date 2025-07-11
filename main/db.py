@@ -1,5 +1,3 @@
-# ✅ db.py
-
 from pymongo import MongoClient
 import time
 from config import MONGO_URL
@@ -13,24 +11,37 @@ captions_col = db["captions"]
 tasks_col = db["tasks"]
 files_col = db["user_files"]
 
+# ✅ Default Settings
 DEFAULT_SETTINGS = {
     "screenshot": True,
     "count": 3,
     "rename_type": "doc",
     "prefix_enabled": True,
-    "prefix_text": "@sunriseseditsoffical6 -"
+    "prefix_text": "@sunriseseditsoffical6 -",
+    "theme": "Light"
 }
 
+# ✅ Settings
 def get_settings(user_id):
     data = settings_col.find_one({"_id": user_id})
     if not data:
         settings_col.insert_one({"_id": user_id, **DEFAULT_SETTINGS})
         return DEFAULT_SETTINGS.copy()
+    
+    # Add missing defaults
+    for key, val in DEFAULT_SETTINGS.items():
+        if key not in data:
+            data[key] = val
+            update_settings(user_id, key, val)
     return data
 
 def update_settings(user_id, key, value):
     settings_col.update_one({"_id": user_id}, {"$set": {key: value}}, upsert=True)
 
+def reset_settings(user_id):
+    settings_col.update_one({"_id": user_id}, {"$set": DEFAULT_SETTINGS}, upsert=True)
+
+# ✅ Thumbnail
 def set_thumbnail(user_id, file_id):
     thumbs_col.update_one({"_id": user_id}, {"$set": {"file_id": file_id}}, upsert=True)
 
@@ -41,6 +52,7 @@ def get_thumbnail(user_id):
 def clear_thumbnail(user_id):
     thumbs_col.delete_one({"_id": user_id})
 
+# ✅ Captions
 def update_caption(user_id, text):
     captions_col.update_one({"_id": user_id}, {"$set": {"caption": text}}, upsert=True)
 
@@ -48,6 +60,7 @@ def get_caption(user_id):
     data = captions_col.find_one({"_id": user_id})
     return data["caption"] if data else None
 
+# ✅ Tasks
 def get_user_tasks(user_id):
     data = tasks_col.find_one({"_id": user_id})
     return data["tasks"] if data else []
@@ -63,6 +76,7 @@ def remove_task(user_id, index):
         return True
     return False
 
+# ✅ Saved Files
 def save_file(user_id, file_name, file_path):
     files_col.update_one(
         {"_id": user_id},
@@ -90,6 +104,7 @@ def get_user_files(user_id):
 def clear_user_files(user_id):
     files_col.delete_one({"_id": user_id})
 
+# ✅ Clear all collections (use carefully)
 def clear_database():
     settings_col.drop()
     thumbs_col.drop()
