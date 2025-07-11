@@ -10,6 +10,7 @@ from main.db import (
 )
 from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
+from pyrogram.types import InputMediaPhoto
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_message(filters.command("rename"))
@@ -155,12 +156,18 @@ async def list_tasks(client, message):
     else:
         await message.reply(text)
 
-"""
+
+
 @Client.on_message(filters.command("settings"))
 async def open_settings(client, message: Message):
-    user_id = message.from_user.id
+    await send_settings_photo(client, message)
+
+async def send_settings_photo(client, target):
+    user_id = target.from_user.id
     s = get_settings(user_id)
     count = s.get("count", 3)
+    theme = s.get("theme", "Light")
+    thumb_url = get_thumbnail(user_id) or SETTINGS_PIC
 
     markup = InlineKeyboardMarkup([
         [InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="set_toggle_ss")],
@@ -173,19 +180,35 @@ async def open_settings(client, message: Message):
             InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="set_toggle_prefix"),
             InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="set_toggle_type")
         ],
+        [InlineKeyboardButton(f"🎨 Theme: {theme}", callback_data="set_theme_menu")],
         [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
         [
             InlineKeyboardButton("🔤 Prefix Text", callback_data="set_show_prefix"),
             InlineKeyboardButton("📄 Caption", callback_data="set_show_caption")
         ],
-        [InlineKeyboardButton("Close ❌", callback_data="set_close")]
+        [
+            InlineKeyboardButton("♻️ Reset Settings", callback_data="set_reset"),
+            InlineKeyboardButton("❌ Close", callback_data="set_close")
+        ]
     ])
 
-    await message.reply("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
-
+    try:
+        await target.edit_media(
+            media=InputMediaPhoto(
+                media=thumb_url,
+                caption="⚙️ Customize your bot settings:"
+            ),
+            reply_markup=markup
+        )
+    except:
+        await target.reply_photo(
+            photo=thumb_url,
+            caption="⚙️ Customize your bot settings:",
+            reply_markup=markup
+        )
 
 @Client.on_callback_query(filters.regex("^set_"))
-async def cb_settings_handler(client: Client, cb: CallbackQuery):
+async def cb_settings_handler(client, cb: CallbackQuery):
     uid = cb.from_user.id
     s = get_settings(uid)
     data = cb.data
@@ -220,10 +243,9 @@ async def cb_settings_handler(client: Client, cb: CallbackQuery):
         return await cb.message.reply(f"📄 Current Custom Caption:\n{cap}")
 
     elif data == "set_thumb_menu":
-        await cb.message.edit_text(
-            "🖼️ Thumbnail Options:",
+        await cb.message.edit_caption(
+            caption="🖼️ Thumbnail Options:\n\n📌 Send a new photo to set thumbnail or use below options.",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("📌 Send Photo to Set", callback_data="noop")],
                 [InlineKeyboardButton("🗑️ Remove Thumbnail", callback_data="set_remove_thumb")],
                 [InlineKeyboardButton("🔙 Back", callback_data="settings_back")]
             ])
@@ -233,51 +255,49 @@ async def cb_settings_handler(client: Client, cb: CallbackQuery):
     elif data == "set_remove_thumb":
         clear_thumbnail(uid)
         await cb.answer("✅ Thumbnail removed")
-        return await open_settings(client, cb.message)
+        return await send_settings_photo(client, cb.message)
+
+    elif data == "settings_back":
+        return await send_settings_photo(client, cb.message)
+
+    elif data == "set_theme_menu":
+        await cb.message.edit_caption(
+            caption="🎨 Select a Theme for UI style:",
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("☀️ Light", callback_data="theme_light"),
+                    InlineKeyboardButton("🌙 Dark", callback_data="theme_dark"),
+                    InlineKeyboardButton("🌇 Sunset", callback_data="theme_sunset")
+                ],
+                [InlineKeyboardButton("🔙 Back", callback_data="settings_back")]
+            ])
+        )
+        return await cb.answer()
+
+    elif data.startswith("theme_"):
+        theme = data.split("_", 1)[1].capitalize()
+        update_settings(uid, "theme", theme)
+        await cb.answer(f"🎨 Theme set to {theme}")
+        return await send_settings_photo(client, cb.message)
+
+    elif data == "set_reset":
+        reset_settings(uid)
+        clear_thumbnail(uid)
+        await cb.answer("♻️ Settings reset")
+        return await send_settings_photo(client, cb.message)
 
     elif data == "set_close":
         try:
             await cb.message.delete()
         except:
-            await cb.message.edit_text("❌ Closed.")
-
+            await cb.message.edit_caption("❌ Closed.")
         return await cb.answer()
 
-    elif data == "settings_back":
-        return await open_settings(client, cb.message)
-
-    # Refresh panel
-    new_data = get_settings(uid)
-    count = new_data.get("count", 3)
-    markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="set_toggle_ss")],
-        [
-            InlineKeyboardButton("➖", callback_data="set_decrease_count"),
-            InlineKeyboardButton(f"🧮 Count: {count}", callback_data="noop"),
-            InlineKeyboardButton("➕", callback_data="set_increase_count")
-        ],
-        [
-            InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="set_toggle_prefix"),
-            InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="set_toggle_type")
-        ],
-        [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
-        [
-            InlineKeyboardButton("🔤 Prefix Text", callback_data="set_show_prefix"),
-            InlineKeyboardButton("📄 Caption", callback_data="set_show_caption")
-        ],
-        [InlineKeyboardButton("Close ❌", callback_data="set_close")]
-    ])
-    try:
-        await cb.message.edit_text("⚙️ Customize your bot settings:\u200b", reply_markup=markup)
-        await cb.answer()
-    except Exception as e:
-        if "MESSAGE_NOT_MODIFIED" in str(e):
-            await cb.answer("⚠️ No changes to update.")
-        else:
-            print("[Edit Error]", e)
-
-  """
-
+    await send_settings_photo(client, cb.message)
+    await cb.answer()
+    
+  
+"""
 @Client.on_message(filters.command("settings"))
 async def open_settings(client, message: Message):
     user_id = message.from_user.id
@@ -400,6 +420,8 @@ async def cb_settings_handler(client, cb: CallbackQuery):
             await cb.answer("⚠️ No changes to update.")
         else:
             print("[Edit Error]", e)
+
+"""
 
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_user_task(client, message):
