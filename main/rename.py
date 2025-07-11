@@ -11,6 +11,112 @@ from main.db import (
 from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
 
+
+
+# ✅ Reusable panel generator
+async def send_settings_photo(client, target):
+    user_id = target.from_user.id
+    s = get_settings(user_id)
+    count = s.get("count", 3)
+
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="set_toggle_ss")],
+        [
+            InlineKeyboardButton("➖", callback_data="set_decrease_count"),
+            InlineKeyboardButton(f"🧮 Count: {count}", callback_data="noop"),
+            InlineKeyboardButton("➕", callback_data="set_increase_count")
+        ],
+        [
+            InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="set_toggle_prefix"),
+            InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="set_toggle_type")
+        ],
+        [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
+        [
+            InlineKeyboardButton("🔤 Prefix Text", callback_data="set_show_prefix"),
+            InlineKeyboardButton("📄 Caption", callback_data="set_show_caption")
+        ],
+        [InlineKeyboardButton("❌ Close", callback_data="set_close")]
+    ])
+
+    try:
+        await target.edit_caption("⚙️ Customize your bot settings:", reply_markup=markup)
+    except:
+        await target.reply_photo(
+            photo=INFO_PIC,
+            caption="⚙️ Customize your bot settings:",
+            reply_markup=markup
+        )
+
+
+# ✅ /settings command
+@Client.on_message(filters.command("settings"))
+async def open_settings(client, message: Message):
+    await send_settings_photo(client, message)
+
+
+# ✅ Callback handler
+@Client.on_callback_query(filters.regex("^set_"))
+async def cb_settings_handler(client, cb: CallbackQuery):
+    uid = cb.from_user.id
+    s = get_settings(uid)
+    data = cb.data
+
+    if data == "set_toggle_ss":
+        update_settings(uid, "screenshot", not s.get("screenshot", False))
+
+    elif data == "set_toggle_prefix":
+        update_settings(uid, "prefix_enabled", not s.get("prefix_enabled", True))
+
+    elif data == "set_toggle_type":
+        new_type = "video" if s.get("rename_type") == "doc" else "doc"
+        update_settings(uid, "rename_type", new_type)
+
+    elif data == "set_increase_count":
+        if s.get("count", 3) < 20:
+            update_settings(uid, "count", s.get("count", 3) + 1)
+
+    elif data == "set_decrease_count":
+        if s.get("count", 3) > 1:
+            update_settings(uid, "count", s.get("count", 3) - 1)
+
+    elif data == "set_show_prefix":
+        await cb.answer()
+        return await cb.message.reply(f"📎 Current Prefix:\n{s.get('prefix_text', '-')}")
+
+    elif data == "set_show_caption":
+        cap = get_caption(uid) or "None"
+        await cb.answer()
+        return await cb.message.reply(f"📄 Current Custom Caption:\n{cap}")
+
+    elif data == "set_thumb_menu":
+        await cb.message.edit_caption(
+            caption="🖼️ Thumbnail Options:\n\n📌 Send photo to set thumbnail or use options below.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🗑️ Remove Thumbnail", callback_data="set_remove_thumb")],
+                [InlineKeyboardButton("🔙 Back", callback_data="settings_back")]
+            ])
+        )
+        return await cb.answer()
+
+    elif data == "set_remove_thumb":
+        clear_thumbnail(uid)
+        await cb.answer("✅ Thumbnail removed")
+        return await send_settings_photo(client, cb.message)
+
+    elif data == "settings_back":
+        return await send_settings_photo(client, cb.message)
+
+    elif data == "set_close":
+        try:
+            await cb.message.delete()
+        except:
+            await cb.message.edit_caption("❌ Closed.")
+        return await cb.answer()
+
+    # If none of the above, refresh settings panel
+    await send_settings_photo(client, cb.message)
+    await cb.answer()
+
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_message(filters.command("rename"))
 async def rename_file(client, message: Message):
@@ -156,7 +262,7 @@ async def list_tasks(client, message):
         await message.reply(text)
 
 
-
+"""
 @Client.on_message(filters.command("settings"))
 async def open_settings(client, message: Message):
     user_id = message.from_user.id
@@ -280,6 +386,7 @@ async def cb_settings_handler(client, cb: CallbackQuery):
         else:
             print("[Edit Error]", e)
 
+"""
 
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_user_task(client, message):
