@@ -11,7 +11,6 @@ captions_col = db["captions"]
 tasks_col = db["tasks"]
 files_col = db["user_files"]
 
-# ✅ Default Settings
 DEFAULT_SETTINGS = {
     "screenshot": True,
     "count": 3,
@@ -28,7 +27,6 @@ def get_settings(user_id):
         settings_col.insert_one({"_id": user_id, **DEFAULT_SETTINGS})
         return DEFAULT_SETTINGS.copy()
     
-    # Add missing defaults
     for key, val in DEFAULT_SETTINGS.items():
         if key not in data:
             data[key] = val
@@ -52,7 +50,7 @@ def get_thumbnail(user_id):
 def clear_thumbnail(user_id):
     thumbs_col.delete_one({"_id": user_id})
 
-# ✅ Captions
+# ✅ Caption
 def update_caption(user_id, text):
     captions_col.update_one({"_id": user_id}, {"$set": {"caption": text}}, upsert=True)
 
@@ -104,7 +102,6 @@ def get_user_files(user_id):
 def clear_user_files(user_id):
     files_col.delete_one({"_id": user_id})
 
-# ✅ Clear all collections (use carefully)
 def clear_database():
     settings_col.drop()
     thumbs_col.drop()
