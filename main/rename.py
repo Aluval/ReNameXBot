@@ -10,7 +10,6 @@ from main.db import (
 )
 from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
-from pyrogram.types import InputMediaPhoto
 
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_message(filters.command("rename"))
@@ -157,15 +156,7 @@ async def list_tasks(client, message):
         await message.reply(text)
 
 
-from pyrogram import Client, filters
-from pyrogram.types import (
-    Message, CallbackQuery, InlineKeyboardMarkup,
-    InlineKeyboardButton, InputMediaPhoto
-)
-from db import (
-    get_settings, update_settings, reset_settings,
-    get_caption, get_thumbnail, clear_thumbnail
-)
+
 
 
 @Client.on_message(filters.command("settings"))
