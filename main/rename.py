@@ -13,9 +13,10 @@ from config import *
 
 
 
-# ✅ Send Settings Panel
-async def send_settings_photo(client, target):
-    user_id = target.from_user.id
+
+# Reusable settings panel builder for edit_caption
+async def send_settings_panel(client, message):
+    user_id = message.from_user.id
     s = get_settings(user_id)
     count = s.get("count", 3)
 
@@ -38,30 +39,23 @@ async def send_settings_photo(client, target):
         [InlineKeyboardButton("❌ Close", callback_data="set_close")]
     ])
 
-    try:
-        # If CallbackQuery (has message_id), delete the old message
-        if hasattr(target, "message_id"):
-            await client.delete_messages(chat_id=target.chat.id, message_ids=target.message_id)
-    except:
-        pass
-
     await client.send_photo(
-        chat_id=target.chat.id,
+        chat_id=message.chat.id,
         photo=INFO_PIC,
         caption="⚙️ Customize your bot settings:",
         reply_markup=markup
     )
 
 
-# ✅ /settings command
+# /settings command
 @Client.on_message(filters.command("settings"))
 async def open_settings(client, message: Message):
-    await send_settings_photo(client, message)
+    await send_settings_panel(client, message)
 
 
-# ✅ Callback handler for all setting buttons
+# Callback handler for all setting actions
 @Client.on_callback_query(filters.regex("^set_"))
-async def cb_settings_handler(client, cb: CallbackQuery):
+async def settings_callback_handler(client, cb: CallbackQuery):
     uid = cb.from_user.id
     s = get_settings(uid)
     data = cb.data
@@ -77,14 +71,14 @@ async def cb_settings_handler(client, cb: CallbackQuery):
         update_settings(uid, "rename_type", new_type)
 
     elif data == "set_increase_count":
-        count = s.get("count", 3)
-        if count < 20:
-            update_settings(uid, "count", count + 1)
+        current = s.get("count", 3)
+        if current < 20:
+            update_settings(uid, "count", current + 1)
 
     elif data == "set_decrease_count":
-        count = s.get("count", 3)
-        if count > 1:
-            update_settings(uid, "count", count - 1)
+        current = s.get("count", 3)
+        if current > 1:
+            update_settings(uid, "count", current - 1)
 
     elif data == "set_show_prefix":
         await cb.answer()
@@ -97,7 +91,7 @@ async def cb_settings_handler(client, cb: CallbackQuery):
 
     elif data == "set_thumb_menu":
         await cb.message.edit_caption(
-            caption="🖼️ Thumbnail Options:\n\n📌 Send photo to set thumbnail or use options below.",
+            caption="🖼️ **Thumbnail Options:**\n\n📌 Send photo to set thumbnail or use below options.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🗑️ Remove Thumbnail", callback_data="set_remove_thumb")],
                 [InlineKeyboardButton("🔙 Back", callback_data="settings_back")]
@@ -108,10 +102,52 @@ async def cb_settings_handler(client, cb: CallbackQuery):
     elif data == "set_remove_thumb":
         clear_thumbnail(uid)
         await cb.answer("✅ Thumbnail removed")
-        return await send_settings_photo(client, cb.message)
+        return await cb.message.edit_caption(
+            caption="⚙️ Customize your bot settings:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="set_toggle_ss")],
+                [
+                    InlineKeyboardButton("➖", callback_data="set_decrease_count"),
+                    InlineKeyboardButton(f"🧮 Count: {s.get('count', 3)}", callback_data="noop"),
+                    InlineKeyboardButton("➕", callback_data="set_increase_count")
+                ],
+                [
+                    InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="set_toggle_prefix"),
+                    InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="set_toggle_type")
+                ],
+                [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
+                [
+                    InlineKeyboardButton("🔤 Prefix Text", callback_data="set_show_prefix"),
+                    InlineKeyboardButton("📄 Caption", callback_data="set_show_caption")
+                ],
+                [InlineKeyboardButton("❌ Close", callback_data="set_close")]
+            ])
+        )
 
     elif data == "settings_back":
-        return await send_settings_photo(client, cb.message)
+        # Reuse updated settings and use edit_caption
+        updated = get_settings(uid)
+        count = updated.get("count", 3)
+        markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton(f"📸 Screenshot: {'✅' if updated.get('screenshot') else '❌'}", callback_data="set_toggle_ss")],
+            [
+                InlineKeyboardButton("➖", callback_data="set_decrease_count"),
+                InlineKeyboardButton(f"🧮 Count: {count}", callback_data="noop"),
+                InlineKeyboardButton("➕", callback_data="set_increase_count")
+            ],
+            [
+                InlineKeyboardButton(f"📎 Prefix: {'✅' if updated.get('prefix_enabled') else '❌'}", callback_data="set_toggle_prefix"),
+                InlineKeyboardButton(f"📄 Type: {updated.get('rename_type')}", callback_data="set_toggle_type")
+            ],
+            [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
+            [
+                InlineKeyboardButton("🔤 Prefix Text", callback_data="set_show_prefix"),
+                InlineKeyboardButton("📄 Caption", callback_data="set_show_caption")
+            ],
+            [InlineKeyboardButton("❌ Close", callback_data="set_close")]
+        ])
+        await cb.message.edit_caption("⚙️ Customize your bot settings:", reply_markup=markup)
+        return await cb.answer()
 
     elif data == "set_close":
         try:
@@ -120,9 +156,31 @@ async def cb_settings_handler(client, cb: CallbackQuery):
             await cb.message.edit_caption("❌ Closed.")
         return await cb.answer()
 
-    # ✅ Fallback: refresh panel
-    await send_settings_photo(client, cb.message)
+    # Final fallback: refresh settings panel
+    new_data = get_settings(uid)
+    count = new_data.get("count", 3)
+    markup = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get("screenshot") else '❌'}", callback_data="set_toggle_ss")],
+        [
+            InlineKeyboardButton("➖", callback_data="set_decrease_count"),
+            InlineKeyboardButton(f"🧮 Count: {count}", callback_data="noop"),
+            InlineKeyboardButton("➕", callback_data="set_increase_count")
+        ],
+        [
+            InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get("prefix_enabled") else '❌'}", callback_data="set_toggle_prefix"),
+            InlineKeyboardButton(f"📄 Type: {new_data.get("rename_type")}", callback_data="set_toggle_type")
+        ],
+        [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
+        [
+            InlineKeyboardButton("🔤 Prefix Text", callback_data="set_show_prefix"),
+            InlineKeyboardButton("📄 Caption", callback_data="set_show_caption")
+        ],
+        [InlineKeyboardButton("❌ Close", callback_data="set_close")]
+    ])
+    await cb.message.edit_caption("⚙️ Customize your bot settings:", reply_markup=markup)
     await cb.answer()
+
+    
 
 
 
