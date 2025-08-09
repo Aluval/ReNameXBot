@@ -2,7 +2,6 @@ import os
 import re
 import time
 import asyncio
-import unicodedata
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from main.db import (
@@ -263,54 +262,46 @@ async def rename_file(client, message: Message):
             os.remove(thumb_path)
 
 
+
 @Client.on_message(filters.command("getfile"))
-async def get_file(client, message: Message):
-    uid = message.from_user.id
+async def get_file(client: Client, message: Message):
+    uid = message.from_user.id  
 
-    if len(message.command) < 2:
-        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
+    if len(message.command) < 2:  
+        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)  
 
-    raw_input = message.text.split(None, 1)[1].strip()
+    # Clean input  
+    raw_input = message.text.split(None, 1)[1].strip()  
+    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()  
 
-    # Clean and normalize names
-    def clean_name(name: str) -> str:
-        name = unicodedata.normalize("NFKC", name)
-        name = re.sub(r"(?:@\w+\s*[-:]\s*)+", "", name)
-        name = re.sub(r"\s+", " ", name)
-        return name.strip().lower()
-
-    search_term_clean = clean_name(raw_input)
-
+    # 1️⃣ Show searching status  
     status_msg = await message.reply("🔎 Searching your saved files...")
 
-    files = get_user_files(uid)  # returns [{"name": ..., "path": ...}, ...]
+    # 2️⃣ Get user's files  
+    files = get_user_files(uid)  
 
-    if not files:
-        await status_msg.edit("❗ You don’t have any files saved.")
-        return
+    if not files:  
+        return await status_msg.edit("❗ You don’t have any files saved.")  
 
-    # 1️⃣ Try exact match (case-insensitive, without cleaning)
-    match = next((f["path"] for f in files if f["name"].lower() == raw_input.lower()), None)
+    # Debug log  
+    print("User files:", [f['name'] for f in files])  
+    print("Searching for:", filename)  
 
-    # 2️⃣ If not found, try cleaned exact match
-    if not match:
-        match = next((f["path"] for f in files if clean_name(f["name"]) == search_term_clean), None)
+    # 3️⃣ Find match (case-insensitive)  
+    match = next((f["path"] for f in files if filename in f["name"].lower()), None)  
 
-    # 3️⃣ If still not found, try partial cleaned match
-    if not match:
-        match = next((f["path"] for f in files if search_term_clean in clean_name(f["name"])), None)
-
-    if match and os.path.exists(match):
-        await status_msg.edit("📤 Uploading your file... Please wait.")
-        try:
-            await message.reply_document(match)
-            await status_msg.delete()
-        except Exception as e:
-            await status_msg.edit(f"❌ Upload failed: `{e}`")
-    else:
-        await status_msg.edit(
-            f"❗ File not found.\n\n🔎 You entered:\n`{raw_input}`\n\n📂 Your files:\n" +
-            "\n".join([f"`{f['name']}`" for f in files])
+    # 4️⃣ Send file if found  
+    if match and os.path.exists(match):  
+        await status_msg.edit("📤 Uploading your file... Please wait.")  
+        try:  
+            await message.reply_document(match)  
+            await status_msg.delete()  
+        except Exception as e:  
+            await status_msg.edit(f"❌ Upload failed:\n`{e}`")  
+    else:  
+        await status_msg.edit(  
+            f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +  
+            "\n".join([f"`{f['name']}`" for f in files])  
         )
         
 @Client.on_message(filters.command("tasks"))
