@@ -263,46 +263,23 @@ async def rename_file(client, message: Message):
 
 
 
-@Client.on_message(filters.command("getfile"))
-async def get_file(client: Client, message: Message):
-    uid = message.from_user.id  
+@app.on_message(filters.command("getfile"))
+async def get_file(client, message):
+uid = message.from_user.id
+if len(message.command) < 2:
+return await message.reply("❗ Usage: /getfile <filename>")
 
-    if len(message.command) < 2:  
-        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)  
+filename = message.text.split(None, 1)[1].strip().lower()
+files = get_user_files(uid)
 
-    # Clean input  
-    raw_input = message.text.split(None, 1)[1].strip()  
-    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()  
+match = next((f["path"] for f in files if filename in f["name"].lower()), None)
 
-    # 1️⃣ Show searching status  
-    status_msg = await message.reply("🔎 Searching your saved files...")
+if match and os.path.exists(match):
+await message.reply_document(match)
+else:
+await message.reply("❗ File not found or already deleted.")
 
-    # 2️⃣ Get user's files  
-    files = get_user_files(uid)  
 
-    if not files:  
-        return await status_msg.edit("❗ You don’t have any files saved.")  
-
-    # Debug log  
-    print("User files:", [f['name'] for f in files])  
-    print("Searching for:", filename)  
-
-    # 3️⃣ Find match (case-insensitive)  
-    match = next((f["path"] for f in files if filename in f["name"].lower()), None)  
-
-    # 4️⃣ Send file if found  
-    if match and os.path.exists(match):  
-        await status_msg.edit("📤 Uploading your file... Please wait.")  
-        try:  
-            await message.reply_document(match)  
-            await status_msg.delete()  
-        except Exception as e:  
-            await status_msg.edit(f"❌ Upload failed:\n`{e}`")  
-    else:  
-        await status_msg.edit(  
-            f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +  
-            "\n".join([f"`{f['name']}`" for f in files])  
-        )
         
 @Client.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
