@@ -168,7 +168,7 @@ async def settings_callback_handler(client, cb: CallbackQuery):
         ],
         [
             InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="set_toggle_prefix"),
-            InlineKeyboardButton(f"📄 Type: {new_data.get("rename_type")}", callback_data="set_toggle_type")
+            InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="set_toggle_type")
         ],
         [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
         [
