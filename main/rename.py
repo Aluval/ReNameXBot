@@ -263,39 +263,47 @@ async def rename_file(client, message: Message):
 
 
 @Client.on_message(filters.command("getfile"))
-async def get_file(client, message: Message):    
+async def get_file(client, message: Message):
     uid = message.from_user.id
 
     if len(message.command) < 2:
         return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
     raw_input = message.text.split(None, 1)[1].strip()
-    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
 
-    # 1️⃣ Show searching message immediately
+    # Function to clean file names (remove @username - prefixes)
+    def clean_name(name: str) -> str:
+        return re.sub(r"(?:@\w+\s*[-:]\s*)+", "", name).strip().lower()
+
+    # Clean the search term
+    search_term = clean_name(raw_input)
+
+    # Show searching message
     status_msg = await message.reply("🔎 Searching your saved files...")
 
-    # 2️⃣ Fetch file list
+    # Fetch user's file list
     files = get_user_files(uid)
 
     if not files:
         await status_msg.edit("❗ You don’t have any files saved.")
         return
 
-    # 3️⃣ Search match (case insensitive)
-    match = next((f["path"] for f in files if filename in f["name"].lower()), None)
+    # Search for a match ignoring prefixes and case
+    match = next(
+        (f["path"] for f in files if search_term in clean_name(f["name"])),
+        None
+    )
 
-    # 4️⃣ If found, upload the file and update message
     if match and os.path.exists(match):
         await status_msg.edit("📤 Uploading your file... Please wait.")
         try:
             await message.reply_document(match)
-            await status_msg.delete()  # Delete status after successful upload
+            await status_msg.delete()
         except Exception as e:
             await status_msg.edit(f"❌ Upload failed: `{e}`")
     else:
         await status_msg.edit(
-            f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
+            f"❗ File not found.\n\n🔎 You entered:\n`{raw_input}`\n\n📂 Your files:\n" +
             "\n".join([f"`{f['name']}`" for f in files])
         )
         
