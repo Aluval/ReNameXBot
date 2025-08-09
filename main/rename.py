@@ -2,6 +2,7 @@ import os
 import re
 import time
 import asyncio
+import unicodedata
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from main.db import (
@@ -271,28 +272,33 @@ async def get_file(client, message: Message):
 
     raw_input = message.text.split(None, 1)[1].strip()
 
-    # Function to clean file names (remove @username - prefixes)
+    # Clean and normalize names
     def clean_name(name: str) -> str:
-        return re.sub(r"(?:@\w+\s*[-:]\s*)+", "", name).strip().lower()
+        name = unicodedata.normalize("NFKC", name)
+        name = re.sub(r"(?:@\w+\s*[-:]\s*)+", "", name)
+        name = re.sub(r"\s+", " ", name)
+        return name.strip().lower()
 
-    # Clean the search term
-    search_term = clean_name(raw_input)
+    search_term_clean = clean_name(raw_input)
 
-    # Show searching message
     status_msg = await message.reply("🔎 Searching your saved files...")
 
-    # Fetch user's file list
-    files = get_user_files(uid)
+    files = get_user_files(uid)  # returns [{"name": ..., "path": ...}, ...]
 
     if not files:
         await status_msg.edit("❗ You don’t have any files saved.")
         return
 
-    # Search for a match ignoring prefixes and case
-    match = next(
-        (f["path"] for f in files if search_term in clean_name(f["name"])),
-        None
-    )
+    # 1️⃣ Try exact match (case-insensitive, without cleaning)
+    match = next((f["path"] for f in files if f["name"].lower() == raw_input.lower()), None)
+
+    # 2️⃣ If not found, try cleaned exact match
+    if not match:
+        match = next((f["path"] for f in files if clean_name(f["name"]) == search_term_clean), None)
+
+    # 3️⃣ If still not found, try partial cleaned match
+    if not match:
+        match = next((f["path"] for f in files if search_term_clean in clean_name(f["name"])), None)
 
     if match and os.path.exists(match):
         await status_msg.edit("📤 Uploading your file... Please wait.")
@@ -339,131 +345,6 @@ async def list_tasks(client, message):
         await message.reply(text)
 
 
-"""
-@Client.on_message(filters.command("settings"))
-async def open_settings(client, message: Message):
-    user_id = message.from_user.id
-    s = get_settings(user_id)
-    count = s.get("count", 3)
-
-    markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if s.get('screenshot') else '❌'}", callback_data="set_toggle_ss")],
-        [
-            InlineKeyboardButton("➖", callback_data="set_decrease_count"),
-            InlineKeyboardButton(f"🧮 Count: {count}", callback_data="noop"),
-            InlineKeyboardButton("➕", callback_data="set_increase_count")
-        ],
-        [
-            InlineKeyboardButton(f"📎 Prefix: {'✅' if s.get('prefix_enabled') else '❌'}", callback_data="set_toggle_prefix"),
-            InlineKeyboardButton(f"📄 Type: {s.get('rename_type')}", callback_data="set_toggle_type")
-        ],
-        [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
-        [
-            InlineKeyboardButton("🔤 Prefix Text", callback_data="set_show_prefix"),
-            InlineKeyboardButton("📄 Caption", callback_data="set_show_caption")
-        ],
-        [InlineKeyboardButton("Close ❌", callback_data="set_close")]
-    ])
-
-    await message.reply_photo(
-        photo=INFO_PIC,
-        caption="⚙️ Customize your bot settings:",
-        reply_markup=markup
-    )
-
-@Client.on_callback_query(filters.regex("^set_"))
-async def cb_settings_handler(client, cb: CallbackQuery):
-    uid = cb.from_user.id
-    s = get_settings(uid)
-    data = cb.data
-
-    if data == "set_toggle_ss":
-        update_settings(uid, "screenshot", not s.get("screenshot", False))
-
-    elif data == "set_toggle_prefix":
-        update_settings(uid, "prefix_enabled", not s.get("prefix_enabled", True))
-
-    elif data == "set_toggle_type":
-        new_type = "video" if s.get("rename_type") == "doc" else "doc"
-        update_settings(uid, "rename_type", new_type)
-
-    elif data == "set_increase_count":
-        current = s.get("count", 3)
-        if current < 20:
-            update_settings(uid, "count", current + 1)
-
-    elif data == "set_decrease_count":
-        current = s.get("count", 3)
-        if current > 1:
-            update_settings(uid, "count", current - 1)
-
-    elif data == "set_show_prefix":
-        await cb.answer()
-        return await cb.message.reply(f"📎 Current Prefix:\n{ s.get('prefix_text', '-') }")
-
-    elif data == "set_show_caption":
-        cap = get_caption(uid) or "None"
-        await cb.answer()
-        return await cb.message.reply(f"📄 Current Custom Caption:\n{cap}")
-
-    elif data == "set_thumb_menu":
-        await cb.message.edit_caption(
-            caption="🖼️ Thumbnail Options:\n\n📌 Send photo to set thumbnail or use options below.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🗑️ Remove Thumbnail", callback_data="set_remove_thumb")],
-                [InlineKeyboardButton("🔙 Back", callback_data="settings_back")]
-            ])
-        )
-        return await cb.answer()
-
-    elif data == "set_remove_thumb":
-        clear_thumbnail(uid)
-        await cb.answer("✅ Thumbnail removed")
-        return await open_settings(client, cb.message)
-
-    elif data == "set_close":
-        try:
-            await cb.message.delete()
-        except:
-            await cb.message.edit_caption("❌ Closed.")
-        return await cb.answer()
-
-    elif data == "settings_back":
-        return await open_settings(client, cb.message)
-
-    # Refresh panel with updated settings
-    new_data = get_settings(uid)
-    count = new_data.get("count", 3)
-
-    markup = InlineKeyboardMarkup([
-        [InlineKeyboardButton(f"📸 Screenshot: {'✅' if new_data.get('screenshot') else '❌'}", callback_data="set_toggle_ss")],
-        [
-            InlineKeyboardButton("➖", callback_data="set_decrease_count"),
-            InlineKeyboardButton(f"🧮 Count: {count}", callback_data="noop"),
-            InlineKeyboardButton("➕", callback_data="set_increase_count")
-        ],
-        [
-            InlineKeyboardButton(f"📎 Prefix: {'✅' if new_data.get('prefix_enabled') else '❌'}", callback_data="set_toggle_prefix"),
-            InlineKeyboardButton(f"📄 Type: {new_data.get('rename_type')}", callback_data="set_toggle_type")
-        ],
-        [InlineKeyboardButton("🖼️ Thumbnail", callback_data="set_thumb_menu")],
-        [
-            InlineKeyboardButton("🔤 Prefix Text", callback_data="set_show_prefix"),
-            InlineKeyboardButton("📄 Caption", callback_data="set_show_caption")
-        ],
-        [InlineKeyboardButton("Close ❌", callback_data="set_close")]
-    ])
-
-    try:
-        await cb.message.edit_caption("⚙️ Customize your bot settings:", reply_markup=markup)
-        await cb.answer()
-    except Exception as e:
-        if "MESSAGE_NOT_MODIFIED" in str(e):
-            await cb.answer("⚠️ No changes to update.")
-        else:
-            print("[Edit Error]", e)
-
-"""
 
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_user_task(client, message):
