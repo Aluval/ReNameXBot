@@ -79,8 +79,8 @@ def remove_task(user_id, index):
     return False
 
 def get_all_user_tasks():
-    """Return list of all users' tasks with IDs & usernames."""
-    return list(tasks_col.find({}))
+    """Return all users' tasks from DB."""
+    return list(tasks_col.find({}, {"_id": 1, "tasks": 1}))
 
 # ---------------- FILES ----------------
 def save_file(user_id, file_name, file_path):
