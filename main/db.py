@@ -77,12 +77,11 @@ def remove_task(user_id, index):
 
 
 
-def save_file(user_id, file_name, file_id, file_path):
+def save_file(user_id, file_name, file_path):
     files_col.update_one(
         {"_id": user_id},
         {"$push": {"files": {
             "name": file_name,
-            "file_id": file_id,
             "path": file_path,
             "time": time.time()
         }}},
