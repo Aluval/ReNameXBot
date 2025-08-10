@@ -264,22 +264,28 @@ async def rename_file(client, message: Message):
 
 
 @Client.on_message(filters.command("getfile"))
-async def get_file(client, message):
+async def get_file(client, message: Message):
     uid = message.from_user.id
 
     if len(message.command) < 2:
-        return await message.reply("❗ Usage: /getfile <filename>")
+        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
-    filename = message.text.split(None, 1)[1].strip().lower()
+    raw_input = message.text.split(None, 1)[1].strip().lower()
+
+    # Remove channel mentions and extra spaces
+    filename = re.sub(r"@\w+\s*[-:]\s*", "", raw_input)
+    filename = re.sub(r"\s+", " ", filename).strip()
+
     files = get_user_files(uid)
 
-    match = next((f["path"] for f in files if filename in f["name"].lower()), None)
+    match = next(
+        (f["path"] for f in files if filename in f["name"].lower()), None
+    )
 
-    if match and os.path.exists(match):
+    if match:
         await message.reply_document(match)
     else:
         await message.reply("❗ File not found or already deleted.")
-
         
 @Client.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
