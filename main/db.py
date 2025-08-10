@@ -9,7 +9,7 @@ settings_col = db["settings"]
 thumbs_col = db["thumbnails"]
 captions_col = db["captions"]
 tasks_col = db["tasks"]
-files_col = db["files"]
+files_col = db["user_files"]
 
 
 DEFAULT_SETTINGS = {
