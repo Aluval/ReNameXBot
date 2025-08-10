@@ -11,7 +11,6 @@ captions_col = db["captions"]
 tasks_col = db["tasks"]
 files_col = db["user_files"]
 
-
 DEFAULT_SETTINGS = {
     "screenshot": True,
     "count": 3,
@@ -21,13 +20,13 @@ DEFAULT_SETTINGS = {
     "theme": "Light"
 }
 
-# ✅ Settings
+# ---------------- SETTINGS ----------------
 def get_settings(user_id):
     data = settings_col.find_one({"_id": user_id})
     if not data:
         settings_col.insert_one({"_id": user_id, **DEFAULT_SETTINGS})
         return DEFAULT_SETTINGS.copy()
-    
+
     for key, val in DEFAULT_SETTINGS.items():
         if key not in data:
             data[key] = val
@@ -40,7 +39,7 @@ def update_settings(user_id, key, value):
 def reset_settings(user_id):
     settings_col.update_one({"_id": user_id}, {"$set": DEFAULT_SETTINGS}, upsert=True)
 
-# ✅ Thumbnail
+# ---------------- THUMBNAIL ----------------
 def set_thumbnail(user_id, file_id):
     thumbs_col.update_one({"_id": user_id}, {"$set": {"file_id": file_id}}, upsert=True)
 
@@ -51,7 +50,7 @@ def get_thumbnail(user_id):
 def clear_thumbnail(user_id):
     thumbs_col.delete_one({"_id": user_id})
 
-# ✅ Caption
+# ---------------- CAPTION ----------------
 def update_caption(user_id, text):
     captions_col.update_one({"_id": user_id}, {"$set": {"caption": text}}, upsert=True)
 
@@ -59,13 +58,17 @@ def get_caption(user_id):
     data = captions_col.find_one({"_id": user_id})
     return data["caption"] if data else None
 
-# ✅ Tasks
+# ---------------- TASKS ----------------
 def get_user_tasks(user_id):
     data = tasks_col.find_one({"_id": user_id})
     return data["tasks"] if data else []
 
-def add_task(user_id, task):
-    tasks_col.update_one({"_id": user_id}, {"$push": {"tasks": task}}, upsert=True)
+def add_task(user_id, task, username=None):
+    """Add task and store username if provided."""
+    update_data = {"$push": {"tasks": task}}
+    if username:
+        update_data["$set"] = {"username": username}
+    tasks_col.update_one({"_id": user_id}, update_data, upsert=True)
 
 def remove_task(user_id, index):
     data = get_user_tasks(user_id)
@@ -75,8 +78,11 @@ def remove_task(user_id, index):
         return True
     return False
 
+def get_all_user_tasks():
+    """Return list of all users' tasks with IDs & usernames."""
+    return list(tasks_col.find({}))
 
-
+# ---------------- FILES ----------------
 def save_file(user_id, file_name, file_path):
     files_col.update_one(
         {"_id": user_id},
@@ -87,8 +93,6 @@ def save_file(user_id, file_name, file_path):
         }}},
         upsert=True
     )
-
-
 
 def get_saved_file(user_id, filename):
     user_data = files_col.find_one({"_id": user_id})
@@ -106,6 +110,7 @@ def get_user_files(user_id):
 def clear_user_files(user_id):
     files_col.delete_one({"_id": user_id})
 
+# ---------------- CLEAR DB ----------------
 def clear_database():
     settings_col.drop()
     thumbs_col.drop()
