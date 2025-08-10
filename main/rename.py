@@ -268,28 +268,31 @@ async def get_file(client, message: Message):
     uid = message.from_user.id
 
     if len(message.command) < 2:
-        return await message.reply("❗ Usage: /getfile <filename>", quote=True)
+        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
-    filename_query = message.text.split(None, 1)[1].strip().lower()
+    search_name = message.text.split(None, 1)[1].strip().lower()
 
-    # Fetch files from MongoDB
-    user_data = files_col.find_one({"_id": uid})
+    # Fetch user files from DB
+    user_data = await db.get_user(uid)
     if not user_data or "files" not in user_data:
-        return await message.reply("⚠ No files found for you.")
+        return await message.reply("❌ No files found in database.", quote=True)
 
-    # Find a match (case-insensitive search)
-    match = next((f for f in user_data["files"] if filename_query in f["name"].lower()), None)
+    # Match by actual saved path or stored filename
+    matched_file = None
+    for f in user_data["files"]:
+        if search_name in f["name"].lower() or search_name in f["path"].lower():
+            matched_file = f["path"]
+            break
 
-    if not match:
-        return await message.reply("❌ No matching file found.")
+    if not matched_file:
+        return await message.reply("❌ File not found in database.", quote=True)
 
-    file_path = match.get("path")
-    if not file_path or not os.path.exists(file_path):
-        return await message.reply("❌ File not found on server.")
+    # Check if file exists physically
+    if not os.path.exists(matched_file):
+        return await message.reply("❌ File not found on server.", quote=True)
 
-    # Send the file
-    await message.reply_document(file_path, caption=f"📂 {os.path.basename(file_path)}")
-    
+    # Send file
+    await message.reply_document(matched_file, quote=True)
 
 @Client.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
