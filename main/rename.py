@@ -263,7 +263,7 @@ async def rename_file(client, message: Message):
 
 
 
-@app.on_message(filters.command("getfile"))
+@Client.on_message(filters.command("getfile"))
 async def get_file(client, message: Message):
     uid = message.from_user.id
 
