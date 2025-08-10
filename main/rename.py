@@ -263,37 +263,43 @@ async def rename_file(client, message: Message):
 
 
 
-@Client.on_message(filters.command("getfile"))
+@app.on_message(filters.command("getfile"))
 async def get_file(client, message: Message):
     uid = message.from_user.id
 
     if len(message.command) < 2:
         return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
-    search_name = message.text.split(None, 1)[1].strip().lower()
+    raw_input = message.text.split(None, 1)[1].strip()
+    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
 
-    # Fetch user files from DB
-    user_data = await db.get_user(uid)
-    if not user_data or "files" not in user_data:
-        return await message.reply("❌ No files found in database.", quote=True)
+    # 1️⃣ Show searching message immediately
+    status_msg = await message.reply("🔎 Searching your saved files...")
 
-    # Match by actual saved path or stored filename
-    matched_file = None
-    for f in user_data["files"]:
-        if search_name in f["name"].lower() or search_name in f["path"].lower():
-            matched_file = f["path"]
-            break
+    # 2️⃣ Fetch file list
+    files = get_user_files(uid)
 
-    if not matched_file:
-        return await message.reply("❌ File not found in database.", quote=True)
+    if not files:
+        await status_msg.edit("❗ You don’t have any files saved.")
+        return
 
-    # Check if file exists physically
-    if not os.path.exists(matched_file):
-        return await message.reply("❌ File not found on server.", quote=True)
+    # 3️⃣ Search match (case insensitive)
+    match = next((f["path"] for f in files if filename in f["name"].lower()), None)
 
-    # Send file
-    await message.reply_document(matched_file, quote=True)
-
+    # 4️⃣ If found, upload the file and update message
+    if match and os.path.exists(match):
+        await status_msg.edit("📤 Uploading your file... Please wait.")
+        try:
+            await message.reply_document(match)
+            await status_msg.delete()  # Delete status after successful upload
+        except Exception as e:
+            await status_msg.edit(f"❌ Upload failed: `{e}`")
+    else:
+        await status_msg.edit(
+            f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
+            "\n".join([f"`{f['name']}`" for f in files])
+        )
+        
 @Client.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
     user = message.from_user
