@@ -264,35 +264,36 @@ async def rename_file(client, message: Message):
 
 
 @Client.on_message(filters.command("getfile"))
-async def get_file(client, message: Message):
-    uid = message.from_user.id
+async def get_file(client: Client, message: Message):
+    user_id = message.from_user.id
 
     if len(message.command) < 2:
         return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
-    raw_input = message.text.split(None, 1)[1].strip().lower()
+    # Search text after the command
+    filename_query = message.text.split(None, 1)[1].strip().lower()
 
-    # Remove channel mentions and extra spaces
-    filename = re.sub(r"@\w+\s*[-:]\s*", "", raw_input)
-    filename = re.sub(r"\s+", " ", filename).strip()
+    # Fetch the user's files from MongoDB
+    user_data = files_col.find_one({"_id": user_id})
 
-    files = get_user_files(uid)
+    if not user_data or "files" not in user_data or len(user_data["files"]) == 0:
+        return await message.reply("⚠️ No files found in your storage.", quote=True)
 
+    # Find file matching the query
     match = next(
-        (f["path"] for f in files if filename in f["name"].lower()), None
+        (f for f in user_data["files"] if filename_query in f["name"].lower()), 
+        None
     )
 
-    if match:
-        file_path = match
-        if not os.path.isabs(file_path):
-            file_path = os.path.join(DOWNLOAD_DIR, file_path)
+    if not match:
+        return await message.reply("❌ File not found.", quote=True)
 
-        if os.path.exists(file_path):
-            await message.reply_document(file_path)
-        else:
-            await message.reply("❗ File not found in local storage.")
+    file_path = match["path"]
+
+    if os.path.exists(file_path):
+        await message.reply_document(file_path, caption=f"📄 `{match['name']}`")
     else:
-        await message.reply("❗ File not found or already deleted.")
+        await message.reply("🚫 File path not found or file missing.", quote=True)
         
 @Client.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
