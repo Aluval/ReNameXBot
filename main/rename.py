@@ -262,7 +262,7 @@ async def rename_file(client, message: Message):
             os.remove(thumb_path)
 
 
-
+"""
 @Client.on_message(filters.command("getfile"))
 async def get_file(client, message: Message):
     uid = message.from_user.id
@@ -297,6 +297,54 @@ async def get_file(client, message: Message):
             return await message.reply(f"⚠️ File entry found but missing on disk:\n`{match}`", quote=True)
 
     # No match found
+    return await message.reply(
+        f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
+        "\n".join([f"`{f['name']}`" for f in files]),
+        quote=True
+    )
+
+"""
+@Client.on_message(filters.command("getfile"))
+async def get_file(client, message: Message):
+    uid = message.from_user.id
+
+    # Require a filename argument
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
+
+    # Send "Searching" message first
+    status_msg = await message.reply("⏳ Searching files, please wait…", quote=True)
+
+    # Clean input (remove @username or separators like '-' and ':')
+    raw_input = message.text.split(None, 1)[1].strip()
+    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
+
+    # Fetch user files from DB
+    files = get_user_files(uid)
+    if not files:
+        await status_msg.delete()
+        return await message.reply("❗ You don’t have any files saved.", quote=True)
+
+    # Debug logs
+    print("User files:\n" + "\n".join([f"{i+1}. {f['name']}" for i, f in enumerate(files)]))
+    print("Searching for:", filename)
+
+    # Partial match (case-insensitive)
+    match = next(
+        (f["path"] for f in files if filename in f["name"].lower()), 
+        None
+    )
+
+    if match:
+        if os.path.exists(match):
+            await status_msg.edit_text("✅ File found! Uploading now…")
+            return await message.reply_document(match)
+        else:
+            await status_msg.delete()
+            return await message.reply(f"⚠️ File entry found but missing on disk:\n`{match}`", quote=True)
+
+    # No match found
+    await status_msg.delete()
     return await message.reply(
         f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
         "\n".join([f"`{f['name']}`" for f in files]),
