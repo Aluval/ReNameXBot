@@ -9,7 +9,8 @@ settings_col = db["settings"]
 thumbs_col = db["thumbnails"]
 captions_col = db["captions"]
 tasks_col = db["tasks"]
-files_col = db["user_files"]
+files_col = db["files"]
+
 
 DEFAULT_SETTINGS = {
     "screenshot": True,
@@ -74,7 +75,8 @@ def remove_task(user_id, index):
         return True
     return False
 
-# ✅ Saved Files
+
+
 def save_file(user_id, file_name, file_id, file_path):
     files_col.update_one(
         {"_id": user_id},
@@ -86,6 +88,8 @@ def save_file(user_id, file_name, file_id, file_path):
         }}},
         upsert=True
     )
+
+
 
 def get_saved_file(user_id, filename):
     user_data = files_col.find_one({"_id": user_id})
