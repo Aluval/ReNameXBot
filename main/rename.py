@@ -262,39 +262,26 @@ async def rename_file(client, message: Message):
             os.remove(thumb_path)
 
 
-
 @Client.on_message(filters.command("getfile"))
-async def get_file(client: Client, message: Message):
-    user_id = message.from_user.id
+async def get_file(client, message: Message):
+    uid = message.from_user.id
 
     if len(message.command) < 2:
-        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
+        return await message.reply("❗ Usage: /getfile <filename>", quote=True)
 
-    # Search text after the command
     filename_query = message.text.split(None, 1)[1].strip().lower()
 
-    # Fetch the user's files from MongoDB
-    user_data = files_col.find_one({"_id": user_id})
+    user_data = files_col.find_one({"_id": uid})
+    if not user_data or "files" not in user_data:
+        return await message.reply("⚠ No files found for you.")
 
-    if not user_data or "files" not in user_data or len(user_data["files"]) == 0:
-        return await message.reply("⚠️ No files found in your storage.", quote=True)
+    match = next((f["path"] for f in user_data["files"] if filename_query in f["name"].lower()), None)
 
-    # Find file matching the query
-    match = next(
-        (f for f in user_data["files"] if filename_query in f["name"].lower()), 
-        None
-    )
+    if not match or not os.path.exists(match):
+        return await message.reply("❌ File not found on server.")
 
-    if not match:
-        return await message.reply("❌ File not found.", quote=True)
+    await message.reply_document(match, caption=f"📂 {os.path.basename(match)}")
 
-    file_path = match["path"]
-
-    if os.path.exists(file_path):
-        await message.reply_document(file_path, caption=f"📄 `{match['name']}`")
-    else:
-        await message.reply("🚫 File path not found or file missing.", quote=True)
-        
 @Client.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
     user = message.from_user
