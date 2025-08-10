@@ -276,23 +276,22 @@ async def rename_file(client, message: Message):
             os.remove(thumb_path)
 
 
-
-
-
 @Client.on_message(filters.command("tasks"))
 async def list_all_tasks(client, message: Message):
+    import math
+    from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
     page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
     if page < 1:
         page = 1
 
     all_tasks_data = get_all_user_tasks()
-    # Flatten tasks into one list with user info
     all_tasks = []
     for entry in all_tasks_data:
-        uid = entry["_id"]
-        uname = f"@{entry['username']}" if entry.get("username") else f"ID:{uid}"
+        uid = entry["_id"]  # FIXED
+        uname = f"@{entry.get('username', '')}" if entry.get("username") else f"ID:{uid}"
         for task in entry.get("tasks", []):
-            all_tasks.append((uname, task))
+            all_tasks.append((uid, uname, task))
 
     total_tasks = len(all_tasks)
     if total_tasks == 0:
@@ -305,10 +304,9 @@ async def list_all_tasks(client, message: Message):
     paged_tasks = all_tasks[start:end]
 
     text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
-    for i, (uname, task) in enumerate(paged_tasks, start=start + 1):
-        text += f"{i}. {uname} - `{task}`\n"
+    for i, (uid, uname, task) in enumerate(paged_tasks, start=start + 1):
+        text += f"{i}. {uname} - `{task}`\n\n"  # Added extra line for clarity
 
-    # Pagination buttons
     buttons = []
     if page > 1:
         buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
@@ -319,75 +317,52 @@ async def list_all_tasks(client, message: Message):
     await message.reply(text, reply_markup=markup)
 
 
-@Client.on_callback_query(filters.regex(r"^tasks_page:(\d+)$"))
-async def paginate_all_tasks(client, callback_query):
-    page = int(callback_query.data.split(":")[1])
-
-    all_tasks_data = get_all_user_tasks()
-    all_tasks = []
-    for entry in all_tasks_data:
-        uid = entry["user_id"]
-        uname = f"@{entry['username']}" if entry.get("username") else f"ID:{uid}"
-        for task in entry.get("tasks", []):
-            all_tasks.append((uname, task))
-
-    total_tasks = len(all_tasks)
-    if total_tasks == 0:
-        return await callback_query.answer("❗ No tasks found.", show_alert=True)
-
-    per_page = 10
-    total_pages = math.ceil(total_tasks / per_page)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paged_tasks = all_tasks[start:end]
-
-    text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
-    for i, (uname, task) in enumerate(paged_tasks, start=start + 1):
-        text += f"{i}. {uname} - `{task}`\n"
-
-    buttons = []
-    if page > 1:
-        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
-    if page < total_pages:
-        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"tasks_page:{page+1}"))
-
-    markup = InlineKeyboardMarkup([buttons]) if buttons else None
-    await callback_query.message.edit_text(text, reply_markup=markup)
-
-
 
 # ------------------- GET FILE (SELF OR OTHERS) -------------------
 @Client.on_message(filters.command("getfile"))
 async def get_file(client, message: Message):
-    # Usage: /getfile <filename> OR /getfile <user_id> <filename>
     parts = message.command
     if len(parts) < 2:
-        return await message.reply("❗ Usage: `/getfile <filename>` or `/getfile <user_id> <filename>`")
+        return await message.reply(
+            "❗ Usage:\n"
+            "`/getfile <filename>` (your files)\n"
+            "`/getfile <user_id> <filename>` (other user's files)",
+            quote=True
+        )
 
     if len(parts) >= 3 and parts[1].isdigit():
         uid = int(parts[1])
-        filename = " ".join(parts[2:])
+        raw_input = " ".join(parts[2:])
     else:
         uid = message.from_user.id
-        filename = " ".join(parts[1:])
+        raw_input = " ".join(parts[1:])
 
-    filename = filename.strip().lower()
+    status_msg = await message.reply("⏳ Searching files, please wait…", quote=True)
+    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
 
     files = get_user_files(uid)
     if not files:
-        return await message.reply("❗ No files found for that user.")
+        await status_msg.delete()
+        return await message.reply("❗ No files found for that user.", quote=True)
 
     match = next((f["path"] for f in files if filename in f["name"].lower()), None)
 
-    if match and os.path.exists(match):
-        await message.reply_document(match, caption=f"✅ File from {uid}")
-    elif match:
-        await message.reply(f"⚠️ File entry found but missing on disk:\n`{match}`")
-    else:
-        await message.reply(
-            f"❗ File not found.\n📂 Available:\n" +
-            "\n".join([f"`{f['name']}`" for f in files])
-        )
+    if match:
+        if os.path.exists(match):
+            await status_msg.edit_text("✅ File found! Uploading now…")
+            sent_msg = await message.reply_document(match, caption=f"📂 File from `{uid}`")
+            await status_msg.edit_text("📤 Upload completed successfully!")
+            return sent_msg
+        else:
+            await status_msg.delete()
+            return await message.reply(f"⚠️ File entry found but missing on disk:\n`{match}`", quote=True)
+
+    await status_msg.delete()
+    return await message.reply(
+        f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Available files:\n" +
+        "\n".join([f"`{f['name']}`" for f in files]),
+        quote=True
+    )
 
 
 # ------------------- REMOVE TASK (ADMIN ONLY) -------------------
