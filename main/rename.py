@@ -4,14 +4,27 @@ import time
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from main.db import (
-    get_settings, update_settings, set_thumbnail, get_thumbnail, clear_thumbnail,
-    update_caption, files_col, get_caption, add_task, get_user_tasks, remove_task, save_file, get_saved_file, get_user_files, clear_database
-)
+
 from main.utils import progress_bar, take_screenshots, cleanup
 from config import *
-
-
+from main.db import (
+    get_settings,
+    update_settings,
+    reset_settings,
+    set_thumbnail,
+    get_thumbnail,
+    clear_thumbnail,
+    update_caption,
+    get_caption,
+    add_task,
+    get_user_tasks,
+    remove_task,
+    save_file,
+    get_saved_file,
+    get_user_files,
+    clear_user_files,
+    clear_database
+)
 
 
 # Reusable settings panel builder for edit_caption
