@@ -262,35 +262,34 @@ async def rename_file(client, message: Message):
             os.remove(thumb_path)
 
 
+
 @Client.on_message(filters.command("getfile"))
 async def get_file(client, message: Message):
     uid = message.from_user.id
-    
+
     if len(message.command) < 2:
-        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
-    
-    raw_input = message.text.split(None, 1)[1].strip().lower()
-    
-    # Fetch user data
+        return await message.reply("❗ Usage: /getfile <filename>", quote=True)
+
+    filename_query = message.text.split(None, 1)[1].strip().lower()
+
+    # Fetch files from MongoDB
     user_data = files_col.find_one({"_id": uid})
-    
     if not user_data or "files" not in user_data:
-        return await message.reply("❌ You don't have any saved files.")
-    
-    # Search for file
-    match = next((f for f in user_data["files"] if raw_input in f["name"].lower()), None)
-    
+        return await message.reply("⚠ No files found for you.")
+
+    # Find a match (case-insensitive search)
+    match = next((f for f in user_data["files"] if filename_query in f["name"].lower()), None)
+
     if not match:
+        return await message.reply("❌ No matching file found.")
+
+    file_path = match.get("path")
+    if not file_path or not os.path.exists(file_path):
         return await message.reply("❌ File not found on server.")
+
+    # Send the file
+    await message.reply_document(file_path, caption=f"📂 {os.path.basename(file_path)}")
     
-    try:
-        await client.send_document(
-            chat_id=message.chat.id,
-            document=match["file_id"],
-            caption=f"📄 **File Name:** {match['name']}\n📁 **Path:** {match['path']}"
-        )
-    except Exception as e:
-        await message.reply(f"⚠️ Error sending file: {str(e)}")
 
 @Client.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
