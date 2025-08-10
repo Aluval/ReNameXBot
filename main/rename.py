@@ -289,7 +289,7 @@ async def list_all_tasks(client, message: Message):
     # Flatten tasks into one list with user info
     all_tasks = []
     for entry in all_tasks_data:
-        uid = entry["user_id"]
+        uid = entry["_id"]
         uname = f"@{entry['username']}" if entry.get("username") else f"ID:{uid}"
         for task in entry.get("tasks", []):
             all_tasks.append((uname, task))
