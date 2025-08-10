@@ -262,135 +262,134 @@ async def rename_file(client, message: Message):
             os.remove(thumb_path)
 
 
-"""
-@Client.on_message(filters.command("getfile"))
-async def get_file(client, message: Message):
-    uid = message.from_user.id
 
-    # Require a filename argument
-    if len(message.command) < 2:
-        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
 
-    # Clean input (remove @username or separators like '-' and ':')
-    raw_input = message.text.split(None, 1)[1].strip()
-    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
 
-    # Fetch user files
-    files = get_user_files(uid)
-    if not files:
-        return await message.reply("❗ You don’t have any files saved.", quote=True)
-
-    # Debug logs
-    print("User files:\n" + "\n".join([f"{i+1}. {f['name']}" for i, f in enumerate(files)]))
-    print("Searching for:", filename)
-
-    # Partial match (case-insensitive)
-    match = next(
-        (f["path"] for f in files if filename in f["name"].lower()), 
-        None
-    )
-
-    if match:
-        if os.path.exists(match):
-            return await message.reply_document(match)
-        else:
-            return await message.reply(f"⚠️ File entry found but missing on disk:\n`{match}`", quote=True)
-
-    # No match found
-    return await message.reply(
-        f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
-        "\n".join([f"`{f['name']}`" for f in files]),
-        quote=True
-    )
-
-"""
-@Client.on_message(filters.command("getfile"))
-async def get_file(client, message: Message):
-    uid = message.from_user.id
-
-    if len(message.command) < 2:
-        return await message.reply("❗ Usage: `/getfile <filename>`", quote=True)
-
-    status_msg = await message.reply("⏳ Searching files, please wait…", quote=True)
-
-    raw_input = message.text.split(None, 1)[1].strip()
-    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
-
-    files = get_user_files(uid)
-    if not files:
-        await status_msg.delete()
-        return await message.reply("❗ You don’t have any files saved.", quote=True)
-
-    match = next(
-        (f["path"] for f in files if filename in f["name"].lower()), 
-        None
-    )
-
-    if match:
-        if os.path.exists(match):
-            await status_msg.edit_text("✅ File found! Uploading now…")
-            sent_msg = await message.reply_document(match)  # upload file
-            await status_msg.edit_text("📤 Upload completed successfully!")  # change after upload
-            return sent_msg
-        else:
-            await status_msg.delete()
-            return await message.reply(f"⚠️ File entry found but missing on disk:\n`{match}`", quote=True)
-
-    await status_msg.delete()
-    return await message.reply(
-        f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Your files:\n" +
-        "\n".join([f"`{f['name']}`" for f in files]),
-        quote=True
-    )
-        
 @Client.on_message(filters.command("tasks"))
-async def list_tasks(client, message):
-    user = message.from_user
-    user_id = user.id
-    username = f"@{user.username}" if user.username else f"ID: {user.id}"
-
+async def list_all_tasks(client, message: Message):
     page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
-    tasks = get_user_tasks(user_id)
-    items_per_page = 5
-    start = (page - 1) * items_per_page
-    end = start + items_per_page
-    paged_tasks = tasks[start:end]
+    if page < 1:
+        page = 1
 
-    if not paged_tasks:
-        return await message.reply("❗ No tasks found on this page.")
+    all_tasks_data = get_all_user_tasks()
+    # Flatten tasks into one list with user info
+    all_tasks = []
+    for entry in all_tasks_data:
+        uid = entry["user_id"]
+        uname = f"@{entry['username']}" if entry.get("username") else f"ID:{uid}"
+        for task in entry.get("tasks", []):
+            all_tasks.append((uname, task))
 
-    text = f"📋 **Your Tasks ({username}):**\n\n"
-    for i, task in enumerate(paged_tasks, start=start + 1):
-        text += f"{i}. `{task}`\n\n"  # <-- DOUBLE NEWLINE for spacing
+    total_tasks = len(all_tasks)
+    if total_tasks == 0:
+        return await message.reply("❗ No tasks found for any users.")
+
+    per_page = 10
+    total_pages = math.ceil(total_tasks / per_page)
+    start = (page - 1) * per_page
+    end = start + per_page
+    paged_tasks = all_tasks[start:end]
+
+    text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
+    for i, (uname, task) in enumerate(paged_tasks, start=start + 1):
+        text += f"{i}. {uname} - `{task}`\n"
+
+    # Pagination buttons
+    buttons = []
+    if page > 1:
+        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
+    if page < total_pages:
+        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"tasks_page:{page+1}"))
+
+    markup = InlineKeyboardMarkup([buttons]) if buttons else None
+    await message.reply(text, reply_markup=markup)
+
+
+@Client.on_callback_query(filters.regex(r"^tasks_page:(\d+)$"))
+async def paginate_all_tasks(client, callback_query):
+    page = int(callback_query.data.split(":")[1])
+
+    all_tasks_data = get_all_user_tasks()
+    all_tasks = []
+    for entry in all_tasks_data:
+        uid = entry["user_id"]
+        uname = f"@{entry['username']}" if entry.get("username") else f"ID:{uid}"
+        for task in entry.get("tasks", []):
+            all_tasks.append((uname, task))
+
+    total_tasks = len(all_tasks)
+    if total_tasks == 0:
+        return await callback_query.answer("❗ No tasks found.", show_alert=True)
+
+    per_page = 10
+    total_pages = math.ceil(total_tasks / per_page)
+    start = (page - 1) * per_page
+    end = start + per_page
+    paged_tasks = all_tasks[start:end]
+
+    text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
+    for i, (uname, task) in enumerate(paged_tasks, start=start + 1):
+        text += f"{i}. {uname} - `{task}`\n"
 
     buttons = []
     if page > 1:
-        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"task_page:{page - 1}"))
-    if end < len(tasks):
-        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"task_page:{page + 1}"))
+        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
+    if page < total_pages:
+        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"tasks_page:{page+1}"))
 
-    if buttons:
-        await message.reply(text, reply_markup=InlineKeyboardMarkup([buttons]))
+    markup = InlineKeyboardMarkup([buttons]) if buttons else None
+    await callback_query.message.edit_text(text, reply_markup=markup)
+
+
+
+# ------------------- GET FILE (SELF OR OTHERS) -------------------
+@Client.on_message(filters.command("getfile"))
+async def get_file(client, message: Message):
+    # Usage: /getfile <filename> OR /getfile <user_id> <filename>
+    parts = message.command
+    if len(parts) < 2:
+        return await message.reply("❗ Usage: `/getfile <filename>` or `/getfile <user_id> <filename>`")
+
+    if len(parts) >= 3 and parts[1].isdigit():
+        uid = int(parts[1])
+        filename = " ".join(parts[2:])
     else:
-        await message.reply(text)
+        uid = message.from_user.id
+        filename = " ".join(parts[1:])
+
+    filename = filename.strip().lower()
+
+    files = get_user_files(uid)
+    if not files:
+        return await message.reply("❗ No files found for that user.")
+
+    match = next((f["path"] for f in files if filename in f["name"].lower()), None)
+
+    if match and os.path.exists(match):
+        await message.reply_document(match, caption=f"✅ File from {uid}")
+    elif match:
+        await message.reply(f"⚠️ File entry found but missing on disk:\n`{match}`")
+    else:
+        await message.reply(
+            f"❗ File not found.\n📂 Available:\n" +
+            "\n".join([f"`{f['name']}`" for f in files])
+        )
 
 
-
+# ------------------- REMOVE TASK (ADMIN ONLY) -------------------
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
-async def remove_user_task(client, message):
+async def remove_user_task_cmd(client, message: Message):
     if len(message.command) < 3:
         return await message.reply("❗ Usage: /removetask <user_id> <task_index>")
     try:
-        user_id = int(message.command[1])
+        target_id = int(message.command[1])
         index = int(message.command[2]) - 1
-        if remove_task(user_id, index):
-            await message.reply(f"✅ Task {index + 1} removed for user {user_id}.")
+        if remove_task(target_id, index):
+            await message.reply(f"✅ Task {index + 1} removed for user {target_id}.")
         else:
             await message.reply("❗ Invalid task index.")
-    except Exception as e:
-        await message.reply(f"❗ Error: {e}")
-
-
+    except ValueError:
+        await message.reply("❗ Invalid user ID or index.")
 
         
 @Client.on_message(filters.photo & filters.private)
