@@ -283,7 +283,14 @@ async def get_file(client, message: Message):
     )
 
     if match:
-        await message.reply_document(match)
+        file_path = match
+        if not os.path.isabs(file_path):
+            file_path = os.path.join(DOWNLOAD_DIR, file_path)
+
+        if os.path.exists(file_path):
+            await message.reply_document(file_path)
+        else:
+            await message.reply("❗ File not found in local storage.")
     else:
         await message.reply("❗ File not found or already deleted.")
         
