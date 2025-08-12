@@ -536,6 +536,7 @@ async def rename_link(client, message: Message):
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
 """
+
 import aiohttp
 import os
 import time
@@ -543,41 +544,51 @@ import urllib.parse
 import re
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from typing import Dict
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
-DOWNLOAD_DIR = "./downloads"  # Change as needed
+DOWNLOAD_DIR = "./downloads"  # Adjust if needed
 
-def humanbytes(size):
-    if size == 0:
-        return "0B"
-    units = ["B", "KB", "MB", "GB", "TB"]
-    power = 0
-    while size > 1024 and power < len(units) - 1:
-        size /= 1024
-        power += 1
-    return f"{size:.2f} {units[power]}"
-
-async def progress_bar(current, total, message, start_time):
+def progress_bar(current: int, total: int, task: Dict):
     now = time.time()
-    diff = now - start_time
-    if diff == 0:
-        diff = 0.001
-    percentage = current * 100 / total
+
+    # Limit update frequency to avoid Telegram FloodWait
+    if "last_edit" in task and now - task["last_edit"] < 2:
+        return
+
+    task["last_edit"] = now
+    diff = now - task["start_time"]
+    diff = diff if diff != 0 else 1  # Avoid div by zero
+
     speed = current / diff
-    eta = (total - current) / speed if speed != 0 else 0
+    eta = (total - current) / speed if speed else 0
+    percent = current * 100 / total
+
+    def human_readable(size):
+        if size > 1024 * 1024 * 1024:
+            return f"{size / (1024 * 1024 * 1024):.2f} GB"
+        else:
+            return f"{size / (1024 * 1024):.2f} MB"
+
+    current_str = human_readable(current)
+    total_str = human_readable(total)
+
     bar_length = 20
-    filled_length = int(bar_length * percentage / 100)
-    bar = "█" * filled_length + "░" * (bar_length - filled_length)
-    text = (
-        f"📥 Downloading... [{bar}] {percentage:.0f}%\n"
-        f"Size: {humanbytes(current)} / {humanbytes(total)}\n"
-        f"Speed: {humanbytes(speed)}/s\n"
+    filled_len = int(bar_length * current / total)
+    bar = "█" * filled_len + "░" * (bar_length - filled_len)
+
+    msg = (
+        f"{task['action']}... [{bar}] {percent:.0f}%\n"
+        f"Size: {current_str} / {total_str}\n"
+        f"Speed: {speed / (1024 * 1024):.2f} MB/s\n"
         f"ETA: {int(eta)}s"
     )
+
     try:
-        await message.edit(text)
+        task["message"].edit(msg)
     except:
         pass
+
 
 @Client.on_message(filters.command("renamelink"))
 async def rename_link(client: Client, message: Message):
@@ -592,10 +603,10 @@ async def rename_link(client: Client, message: Message):
     link = match.group(1).strip()
     new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
 
-    # Encode URL
+    # Encode URL safely
     link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
 
-    # Validate link domain
+    # Validate domain
     if not ("seedr.cc" in link or "workers.dev" in link):
         return await message.reply("❌ Link must be Seedr or Workers link.")
 
@@ -611,12 +622,15 @@ async def rename_link(client: Client, message: Message):
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
     file_path = os.path.join(DOWNLOAD_DIR, new_name)
 
-    # Start download progress message
-    task_msg = await message.reply("📥 Starting download...")
+    # Prepare download task info
+    task = {
+        "message": await message.reply("📥 Starting download..."),
+        "start_time": time.time(),
+        "action": "📥 Downloading",
+        "last_edit": 0
+    }
 
-    start_time = time.time()
     downloaded = 0
-
     try:
         async with aiohttp.ClientSession() as session:
             async with session.get(link) as resp:
@@ -624,30 +638,36 @@ async def rename_link(client: Client, message: Message):
                     async for chunk in resp.content.iter_chunked(1024 * 1024):
                         f.write(chunk)
                         downloaded += len(chunk)
-                        await progress_bar(downloaded, size, task_msg, start_time)
-        await task_msg.edit("✅ Download complete.")
+                        progress_bar(downloaded, size, task)
+        await task["message"].edit("✅ Download complete.")
     except Exception as e:
-        await task_msg.edit(f"❌ Download failed: {e}")
+        await task["message"].edit(f"❌ Download failed: {e}")
         return
 
-    # Upload file
-    task_msg = await message.reply("📤 Starting upload...")
-    start_time = time.time()
+    # Upload task info
+    upload_task = {
+        "message": await message.reply("📤 Starting upload..."),
+        "start_time": time.time(),
+        "action": "📤 Uploading",
+        "last_edit": 0
+    }
+
     try:
         await message.reply_document(
             file_path,
             caption=f"📁 `{new_name}`",
             progress=progress_bar,
-            progress_args=(task_msg, start_time)
+            progress_args=(upload_task,)
         )
-        await task_msg.edit("✅ Upload complete.")
+        await upload_task["message"].edit("✅ Upload complete.")
     except Exception as e:
-        await task_msg.edit(f"❌ Upload failed: {e}")
+        await upload_task["message"].edit(f"❌ Upload failed: {e}")
         return
 
-    # Clean up
+    # Cleanup downloaded file
     if os.path.exists(file_path):
         os.remove(file_path)
+
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
