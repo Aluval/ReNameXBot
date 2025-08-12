@@ -541,132 +541,60 @@ import aiohttp
 import os
 import time
 import urllib.parse
-import re
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from typing import Dict
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
-DOWNLOAD_DIR = "./downloads"  # Adjust if needed
-
-def progress_bar(current: int, total: int, task: Dict):
-    now = time.time()
-
-    # Limit update frequency to avoid Telegram FloodWait
-    if "last_edit" in task and now - task["last_edit"] < 2:
-        return
-
-    task["last_edit"] = now
-    diff = now - task["start_time"]
-    diff = diff if diff != 0 else 1  # Avoid div by zero
-
-    speed = current / diff
-    eta = (total - current) / speed if speed else 0
-    percent = current * 100 / total
-
-    def human_readable(size):
-        if size > 1024 * 1024 * 1024:
-            return f"{size / (1024 * 1024 * 1024):.2f} GB"
-        else:
-            return f"{size / (1024 * 1024):.2f} MB"
-
-    current_str = human_readable(current)
-    total_str = human_readable(total)
-
-    bar_length = 20
-    filled_len = int(bar_length * current / total)
-    bar = "█" * filled_len + "░" * (bar_length - filled_len)
-
-    msg = (
-        f"{task['action']}... [{bar}] {percent:.0f}%\n"
-        f"Size: {current_str} / {total_str}\n"
-        f"Speed: {speed / (1024 * 1024):.2f} MB/s\n"
-        f"ETA: {int(eta)}s"
-    )
-
-    try:
-        task["message"].edit(msg)
-    except:
-        pass
-
 
 @Client.on_message(filters.command("renamelink"))
-async def rename_link(client: Client, message: Message):
-    if len(message.command) < 3:
-        return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
+async def rename_link(client, message: Message):
+    if len(message.command) < 2:
+        return await message.reply("❗ Usage: `/renamelink <direct_link>`", quote=True)
 
-    # Extract URL from message
-    match = re.search(r'(https?://\S+)', message.text)
-    if not match:
-        return await message.reply("❌ No valid URL found.")
+    url = message.text.split(None, 1)[1].strip()
+    decoded_url = urllib.parse.unquote(url)
 
-    link = match.group(1).strip()
-    new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
+    # Get filename from URL
+    filename = os.path.basename(decoded_url.split("?")[0])
+    if not filename:
+        filename = f"file_{int(time.time())}"
 
-    # Encode URL safely
-    link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
+    temp_path = f"./downloads/{filename}"
+    os.makedirs(os.path.dirname(temp_path), exist_ok=True)
 
-    # Validate domain
-    if not ("seedr.cc" in link or "workers.dev" in link):
-        return await message.reply("❌ Link must be Seedr or Workers link.")
-
-    # Check file size
-    async with aiohttp.ClientSession() as session:
-        async with session.head(link) as resp:
-            size = int(resp.headers.get("Content-Length", 0))
-            if size == 0:
-                return await message.reply("❌ Could not determine file size.")
-            if size > MAX_SIZE:
-                return await message.reply("❌ File is larger than 2GB. Not allowed.")
-
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-    file_path = os.path.join(DOWNLOAD_DIR, new_name)
-
-    # Prepare download task info
-    task = {
-        "message": await message.reply("📥 Starting download..."),
-        "start_time": time.time(),
-        "action": "📥 Downloading",
-        "last_edit": 0
-    }
-
-    downloaded = 0
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(link) as resp:
-                with open(file_path, "wb") as f:
+            async with session.get(decoded_url) as resp:
+                if resp.status != 200:
+                    return await message.reply(f"❌ Failed to download. HTTP {resp.status}")
+
+                total_size = int(resp.headers.get("Content-Length", 0))
+                if total_size > MAX_SIZE:
+                    return await message.reply("❌ File too large. Max 2GB allowed.")
+
+                downloaded = 0
+                start_time = time.time()
+
+                # Initial progress message
+                progress_msg = await message.reply("📥 Downloading... [░░░░░░░░░░░░░░░░░░░░] 0%", quote=True)
+
+                with open(temp_path, "wb") as f:
                     async for chunk in resp.content.iter_chunked(1024 * 1024):
                         f.write(chunk)
                         downloaded += len(chunk)
-                        progress_bar(downloaded, size, task)
-        await task["message"].edit("✅ Download complete.")
-    except Exception as e:
-        await task["message"].edit(f"❌ Download failed: {e}")
-        return
+                        await update_progress(progress_msg, downloaded, total_size, start_time)
 
-    # Upload task info
-    upload_task = {
-        "message": await message.reply("📤 Starting upload..."),
-        "start_time": time.time(),
-        "action": "📤 Uploading",
-        "last_edit": 0
-    }
-
-    try:
         await message.reply_document(
-            file_path,
-            caption=f"📁 `{new_name}`",
-            progress=progress_bar,
-            progress_args=(upload_task,)
+            document=temp_path,
+            caption=f"✅ Renamed file: `{filename}`"
         )
-        await upload_task["message"].edit("✅ Upload complete.")
     except Exception as e:
-        await upload_task["message"].edit(f"❌ Upload failed: {e}")
-        return
+        await message.reply(f"❌ Error: `{e}`")
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
-    # Cleanup downloaded file
-    if os.path.exists(file_path):
-        os.remove(file_path)
+
 
         
 if __name__ == '__main__':
