@@ -1,5 +1,5 @@
 ![Typing SVG](https://readme-typing-svg.herokuapp.com/?lines=𝐖𝐄𝐋𝐂𝐎𝐌𝐄+𝐓𝐎+🫆+𝐑𝐞𝐍𝐚𝐦𝐞𝐗𝐁𝐨𝐭+🫆;𝗖𝗥𝗘𝗔𝗧𝗘𝗗+𝗕𝗬+𝗧𝗘𝗔𝗠+𝐒𝐔𝐍𝐑𝐈𝐒𝐄𝐒+𝐇𝐀𝐑𝐒𝐇𝐀+𝟐𝟒✨!;🫆𝐑𝐞𝐍𝐚𝐦𝐞𝐗𝐁𝐨𝐭🫆!)</p>
-<img src="https://envs.sh/eer.jpg" alt="logo" target="/blank">
+<img src="https://envs.sh/dc0.jpg" alt="logo" target="/blank">
 
 <h1 align="center">
  <b><a href="https://t.me/Sunrises_24" target="/blank">🫆 𝐑𝐞𝐍𝐚𝐦𝐞𝐗𝐁𝐨𝐭 🫆</a> 
