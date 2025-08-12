@@ -422,8 +422,8 @@ async def clear_database_handler(client: Client, msg: Message):
 import aiohttp
 import re
 
-SEEDR_PATTERN = r"^https?:\/\/(?:[\w.-]+\.)?seedr\.cc\/.*"
-WORKERS_PATTERN = r"^https?:\/\/(?:[\w.-]+\.)?workers\.dev\/.*"
+SEEDR_PATTERN = r"^https?:\/\/(?:[a-zA-Z0-9.-]+\.)?seedr\.cc\/.*"
+WORKERS_PATTERN = r"^https?:\/\/(?:[a-zA-Z0-9.-]+\.)?workers\.dev\/.*"
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 
 @Client.on_message(filters.command("renamelink"))
