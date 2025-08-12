@@ -420,10 +420,9 @@ async def clear_database_handler(client: Client, msg: Message):
         await msg.reply_text(f"An error occurred: {e}")
 
 import aiohttp
-import re
+import os
 
-SEEDR_PATTERN = r"^https?:\/\/(?:[a-zA-Z0-9.-]+\.)?seedr\.cc\/.*"
-WORKERS_PATTERN = r"^https?:\/\/(?:[a-zA-Z0-9.-]+\.)?workers\.dev\/.*"
+
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 
 @Client.on_message(filters.command("renamelink"))
@@ -436,35 +435,24 @@ async def rename_link(client, message: Message):
         prefix_text = settings.get("prefix_text", "")
         caption_custom = get_caption(user_id)
 
-        new_name = None
-        file_source = None  # "tg" or "link"
+        if len(message.command) < 3:
+            return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
 
-        # Case 1: If replied to a document/video
-        if message.reply_to_message and (message.reply_to_message.document or message.reply_to_message.video):
-            if len(message.command) < 2:
-                return await message.reply("❗ Provide a new filename after /rename")
-            new_name = message.text.split(None, 1)[1]
-            file_source = "tg"
+        new_name = message.text.split(None, 2)[1]
+        link = message.text.split(None, 2)[2].strip()
 
-        # Case 2: If passed a link directly
-        elif len(message.command) >= 3:  # /rename <newname> <link>
-            parts = message.text.split(None, 2)
-            new_name = parts[1]
-            link = parts[2].strip()
+        # Check if it's a valid Seedr or Workers link
+        if not ("seedr.cc" in link or "workers.dev" in link):
+            return await message.reply("❌ Link must be Seedr or Workers link.")
 
-            if not (re.match(SEEDR_PATTERN, link) or re.match(WORKERS_PATTERN, link)):
-                return await message.reply("❌ Link must be Seedr or Workers link.")
-
-            # Check file size before downloading
-            async with aiohttp.ClientSession() as session:
-                async with session.head(link) as resp:
-                    size = int(resp.headers.get("Content-Length", 0))
-                    if size > MAX_SIZE:
-                        return await message.reply("❌ File is larger than 2GB. Not allowed.")
-            file_source = link
-
-        else:
-            return await message.reply("❗ Reply to a file or use `/rename <newname> <link>`.")
+        # Check file size before downloading
+        async with aiohttp.ClientSession() as session:
+            async with session.head(link) as resp:
+                size = int(resp.headers.get("Content-Length", 0))
+                if size == 0:
+                    return await message.reply("❌ Could not determine file size.")
+                if size > MAX_SIZE:
+                    return await message.reply("❌ File is larger than 2GB. Not allowed.")
 
         if prefix_on:
             new_name = f"{prefix_text} {new_name}"
@@ -479,29 +467,26 @@ async def rename_link(client, message: Message):
             except:
                 thumb_path = None
 
-        # Download file
+        # Start download
         task = {
             "message": await message.reply("📥 Starting download..."),
             "start_time": time.time(),
             "action": "📥 Downloading"
         }
 
-        if file_source == "tg":
-            file_path = await message.reply_to_message.download(
-                file_name=os.path.join(DOWNLOAD_DIR, new_name),
-                progress=progress_bar,
-                progress_args=(task,)
-            )
-        else:
-            # Direct link download
-            file_path = os.path.join(DOWNLOAD_DIR, new_name)
-            async with aiohttp.ClientSession() as session:
-                async with session.get(file_source) as resp:
-                    with open(file_path, "wb") as f:
-                        async for chunk in resp.content.iter_chunked(1024 * 1024):
-                            f.write(chunk)
+        file_path = os.path.join(DOWNLOAD_DIR, new_name)
+        async with aiohttp.ClientSession() as session:
+            async with session.get(link) as resp:
+                total_size = int(resp.headers.get("Content-Length", 0))
+                downloaded = 0
+                with open(file_path, "wb") as f:
+                    async for chunk in resp.content.iter_chunked(1024 * 1024):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        await progress_bar(downloaded, total_size, task)
         await task["message"].edit("✅ Download complete.")
 
+        # Prepare caption
         caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
 
         # Upload file
@@ -524,7 +509,7 @@ async def rename_link(client, message: Message):
 
         save_file(user_id, new_name, file_path)
 
-        # Screenshots if video
+        # Send screenshots if video
         if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
             ss_dir = f"ss_{user_id}"
             os.makedirs(ss_dir, exist_ok=True)
@@ -534,7 +519,7 @@ async def rename_link(client, message: Message):
 
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
-
+            
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
