@@ -537,120 +537,118 @@ async def rename_link(client, message: Message):
             os.remove(thumb_path)
 """
 import aiohttp
-import urllib.parse
-import re
 import os
 import time
+import urllib.parse
+import re
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
+DOWNLOAD_DIR = "./downloads"  # Change as needed
+
+def humanbytes(size):
+    if size == 0:
+        return "0B"
+    units = ["B", "KB", "MB", "GB", "TB"]
+    power = 0
+    while size > 1024 and power < len(units) - 1:
+        size /= 1024
+        power += 1
+    return f"{size:.2f} {units[power]}"
+
+async def progress_bar(current, total, message, start_time):
+    now = time.time()
+    diff = now - start_time
+    if diff == 0:
+        diff = 0.001
+    percentage = current * 100 / total
+    speed = current / diff
+    eta = (total - current) / speed if speed != 0 else 0
+    bar_length = 20
+    filled_length = int(bar_length * percentage / 100)
+    bar = "█" * filled_length + "░" * (bar_length - filled_length)
+    text = (
+        f"📥 Downloading... [{bar}] {percentage:.0f}%\n"
+        f"Size: {humanbytes(current)} / {humanbytes(total)}\n"
+        f"Speed: {humanbytes(speed)}/s\n"
+        f"ETA: {int(eta)}s"
+    )
+    try:
+        await message.edit(text)
+    except:
+        pass
 
 @Client.on_message(filters.command("renamelink"))
-async def rename_link(client, message: Message):
-    user_id = message.from_user.id
-    async with QUEUE:
-        settings = get_settings(user_id)
-        rename_type = settings.get("rename_type", "doc")
-        prefix_on = settings.get("prefix_enabled", True)
-        prefix_text = settings.get("prefix_text", "")
-        caption_custom = get_caption(user_id)
+async def rename_link(client: Client, message: Message):
+    if len(message.command) < 3:
+        return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
 
-        if len(message.command) < 3:
-            return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
+    # Extract URL from message
+    match = re.search(r'(https?://\S+)', message.text)
+    if not match:
+        return await message.reply("❌ No valid URL found.")
 
-        # Extract URL
-        match = re.search(r'(https?://\S+)', message.text)
-        if not match:
-            return await message.reply("❌ No valid URL found.")
-        link = match.group(1).strip()
+    link = match.group(1).strip()
+    new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
 
-        # New name
-        new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
+    # Encode URL
+    link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
 
-        # Encode URL
-        link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
+    # Validate link domain
+    if not ("seedr.cc" in link or "workers.dev" in link):
+        return await message.reply("❌ Link must be Seedr or Workers link.")
 
-        # Validate
-        if not ("seedr.cc" in link or "workers.dev" in link):
-            return await message.reply("❌ Link must be Seedr or Workers link.")
+    # Check file size
+    async with aiohttp.ClientSession() as session:
+        async with session.head(link) as resp:
+            size = int(resp.headers.get("Content-Length", 0))
+            if size == 0:
+                return await message.reply("❌ Could not determine file size.")
+            if size > MAX_SIZE:
+                return await message.reply("❌ File is larger than 2GB. Not allowed.")
 
-        # Check size
-        async with aiohttp.ClientSession() as session:
-            async with session.head(link) as resp:
-                size = int(resp.headers.get("Content-Length", 0))
-                if size == 0:
-                    return await message.reply("❌ Could not determine file size.")
-                if size > MAX_SIZE:
-                    return await message.reply("❌ File is larger than 2GB. Not allowed.")
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    file_path = os.path.join(DOWNLOAD_DIR, new_name)
 
-        if prefix_on:
-            new_name = f"{prefix_text} {new_name}"
+    # Start download progress message
+    task_msg = await message.reply("📥 Starting download...")
 
-        add_task(user_id, new_name)
+    start_time = time.time()
+    downloaded = 0
 
-        # Get thumbnail
-        thumb_id = get_thumbnail(user_id)
-        thumb_path = None
-        if thumb_id:
-            try:
-                thumb_path = await client.download_media(thumb_id, file_name=f"thumb_{user_id}.jpg")
-            except:
-                thumb_path = None
-
-        # ===== Download with progress =====
-        task = {
-            "message": await message.reply("📥 Starting download..."),
-            "start_time": time.time(),
-            "action": "📥 Downloading"
-        }
-        file_path = os.path.join(DOWNLOAD_DIR, new_name)
+    try:
         async with aiohttp.ClientSession() as session:
             async with session.get(link) as resp:
-                total_size = int(resp.headers.get("Content-Length", 0))
-                downloaded = 0
                 with open(file_path, "wb") as f:
                     async for chunk in resp.content.iter_chunked(1024 * 1024):
                         f.write(chunk)
                         downloaded += len(chunk)
-                        progress_bar(downloaded, total_size, task)  # ✅ No await
-        await task["message"].edit("✅ Download complete.")
+                        await progress_bar(downloaded, size, task_msg, start_time)
+        await task_msg.edit("✅ Download complete.")
+    except Exception as e:
+        await task_msg.edit(f"❌ Download failed: {e}")
+        return
 
-        # Caption
-        caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
+    # Upload file
+    task_msg = await message.reply("📤 Starting upload...")
+    start_time = time.time()
+    try:
+        await message.reply_document(
+            file_path,
+            caption=f"📁 `{new_name}`",
+            progress=progress_bar,
+            progress_args=(task_msg, start_time)
+        )
+        await task_msg.edit("✅ Upload complete.")
+    except Exception as e:
+        await task_msg.edit(f"❌ Upload failed: {e}")
+        return
 
-        # ===== Upload with progress =====
-        task = {
-            "message": await message.reply("📤 Starting upload..."),
-            "start_time": time.time(),
-            "action": "📤 Uploading"
-        }
-        try:
-            if rename_type == "video":
-                await message.reply_video(file_path, caption=caption, thumb=thumb_path,
-                                          progress=progress_bar, progress_args=(task,))
-            else:
-                await message.reply_document(file_path, caption=caption, thumb=thumb_path,
-                                             progress=progress_bar, progress_args=(task,))
-            await task["message"].edit("✅ Upload complete.")
-        except Exception as e:
-            await task["message"].edit(f"❌ Upload failed: {e}")
-            return
-
-        save_file(user_id, new_name, file_path)
-
-        # Screenshots
-        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
-            ss_dir = f"ss_{user_id}"
-            os.makedirs(ss_dir, exist_ok=True)
-            for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
-                await message.reply_photo(ss)
-            cleanup(ss_dir)
-
-        if thumb_path and os.path.exists(thumb_path):
-            os.remove(thumb_path)
-
-
+    # Clean up
+    if os.path.exists(file_path):
+        os.remove(file_path)
+        
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
