@@ -565,7 +565,7 @@ async def rename_link(client, message: Message):
             return await message.reply("❌ No valid URL found.")
         link = match.group(1).strip()
 
-        # New name (remove command + URL)
+        # New name
         new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
 
         # Encode URL
@@ -613,13 +613,13 @@ async def rename_link(client, message: Message):
                     async for chunk in resp.content.iter_chunked(1024 * 1024):
                         f.write(chunk)
                         downloaded += len(chunk)
-                        await progress_bar(downloaded, total_size, task)  # ✅ Now works for download
+                        progress_bar(downloaded, total_size, task)  # ✅ No await
         await task["message"].edit("✅ Download complete.")
 
         # Caption
         caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
 
-        # ===== Upload with progress (unchanged) =====
+        # ===== Upload with progress =====
         task = {
             "message": await message.reply("📤 Starting upload..."),
             "start_time": time.time(),
