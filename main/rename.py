@@ -548,37 +548,6 @@ from pyrogram.types import Message
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 DOWNLOAD_DIR = "./downloads"  # Change as needed
 
-def humanbytes(size):
-    if size == 0:
-        return "0B"
-    units = ["B", "KB", "MB", "GB", "TB"]
-    power = 0
-    while size > 1024 and power < len(units) - 1:
-        size /= 1024
-        power += 1
-    return f"{size:.2f} {units[power]}"
-
-async def progress_bar(current, total, message, start_time):
-    now = time.time()
-    diff = now - start_time
-    if diff == 0:
-        diff = 0.001
-    percentage = current * 100 / total
-    speed = current / diff
-    eta = (total - current) / speed if speed != 0 else 0
-    bar_length = 20
-    filled_length = int(bar_length * percentage / 100)
-    bar = "█" * filled_length + "░" * (bar_length - filled_length)
-    text = (
-        f"📥 Downloading... [{bar}] {percentage:.0f}%\n"
-        f"Size: {humanbytes(current)} / {humanbytes(total)}\n"
-        f"Speed: {humanbytes(speed)}/s\n"
-        f"ETA: {int(eta)}s"
-    )
-    try:
-        await message.edit(text)
-    except:
-        pass
 
 @Client.on_message(filters.command("renamelink"))
 async def rename_link(client: Client, message: Message):
