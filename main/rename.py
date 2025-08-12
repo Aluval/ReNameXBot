@@ -419,9 +419,11 @@ async def clear_database_handler(client: Client, msg: Message):
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
 
-import aiohttp
-import os
+ #renamelink
 
+import aiohttp
+
+import urllib.parse
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 
@@ -441,11 +443,14 @@ async def rename_link(client, message: Message):
         new_name = message.text.split(None, 2)[1]
         link = message.text.split(None, 2)[2].strip()
 
-        # Check if it's a valid Seedr or Workers link
+        # Fix link by encoding spaces and special characters
+        link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
+
+        # Validate link
         if not ("seedr.cc" in link or "workers.dev" in link):
             return await message.reply("❌ Link must be Seedr or Workers link.")
 
-        # Check file size before downloading
+        # Check file size
         async with aiohttp.ClientSession() as session:
             async with session.head(link) as resp:
                 size = int(resp.headers.get("Content-Length", 0))
@@ -467,7 +472,7 @@ async def rename_link(client, message: Message):
             except:
                 thumb_path = None
 
-        # Start download
+        # Download file
         task = {
             "message": await message.reply("📥 Starting download..."),
             "start_time": time.time(),
@@ -486,10 +491,10 @@ async def rename_link(client, message: Message):
                         await progress_bar(downloaded, total_size, task)
         await task["message"].edit("✅ Download complete.")
 
-        # Prepare caption
+        # Caption
         caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
 
-        # Upload file
+        # Upload
         task = {
             "message": await message.reply("📤 Starting upload..."),
             "start_time": time.time(),
@@ -509,7 +514,7 @@ async def rename_link(client, message: Message):
 
         save_file(user_id, new_name, file_path)
 
-        # Send screenshots if video
+        # Screenshots for videos
         if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
             ss_dir = f"ss_{user_id}"
             os.makedirs(ss_dir, exist_ok=True)
