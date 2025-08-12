@@ -544,9 +544,11 @@ import urllib.parse
 import re
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from typing import Dict
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 DOWNLOAD_DIR = "./downloads"  # Change as needed
+
 
 
 @Client.on_message(filters.command("renamelink"))
@@ -560,6 +562,7 @@ async def rename_link(client: Client, message: Message):
         return await message.reply("❌ No valid URL found.")
 
     link = match.group(1).strip()
+    # Remove command and link to get new_name
     new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
 
     # Encode URL
@@ -584,7 +587,14 @@ async def rename_link(client: Client, message: Message):
     # Start download progress message
     task_msg = await message.reply("📥 Starting download...")
 
-    start_time = time.time()
+    # Setup task dict for download progress
+    download_task = {
+        "message": task_msg,
+        "start_time": time.time(),
+        "last_edit": 0,
+        "action": "Downloading"
+    }
+
     downloaded = 0
 
     try:
@@ -594,32 +604,41 @@ async def rename_link(client: Client, message: Message):
                     async for chunk in resp.content.iter_chunked(1024 * 1024):
                         f.write(chunk)
                         downloaded += len(chunk)
-                        await progress_bar(downloaded, size, task_msg, start_time)
+                        progress_bar(downloaded, size, download_task)
+
         await task_msg.edit("✅ Download complete.")
     except Exception as e:
         await task_msg.edit(f"❌ Download failed: {e}")
         return
 
-    # Upload file
-    task_msg = await message.reply("📤 Starting upload...")
-    start_time = time.time()
+    # Start upload progress message
+    upload_msg = await message.reply("📤 Starting upload...")
+
+    # Setup task dict for upload progress
+    upload_task = {
+        "message": upload_msg,
+        "start_time": time.time(),
+        "last_edit": 0,
+        "action": "Uploading"
+    }
+
     try:
-        await message.reply_document(
-            file_path,
+        await client.send_document(
+            chat_id=message.chat.id,
+            document=file_path,
             caption=f"📁 `{new_name}`",
             progress=progress_bar,
-            progress_args=(task_msg, start_time)
+            progress_args=(upload_task,),
+            reply_to_message_id=message.message_id,
         )
-        await task_msg.edit("✅ Upload complete.")
+        await upload_msg.edit("✅ Upload complete.")
     except Exception as e:
-        await task_msg.edit(f"❌ Upload failed: {e}")
+        await upload_msg.edit(f"❌ Upload failed: {e}")
         return
 
     # Clean up
     if os.path.exists(file_path):
         os.remove(file_path)
-
-
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
