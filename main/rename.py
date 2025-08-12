@@ -499,7 +499,7 @@ async def rename_link(client, message: Message):
                     async for chunk in resp.content.iter_chunked(1024 * 1024):
                         f.write(chunk)
                         downloaded += len(chunk)
-                        await progress_bar(downloaded, total_size, task)
+                        progress_bar(downloaded, total_size, task)
         await task["message"].edit("✅ Download complete.")
 
         # Caption
