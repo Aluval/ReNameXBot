@@ -422,8 +422,12 @@ async def clear_database_handler(client: Client, msg: Message):
  #renamelink
 
 import aiohttp
-
 import urllib.parse
+import re
+import os
+import time
+from pyrogram import Client, filters
+from pyrogram.types import Message
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 
@@ -440,8 +444,15 @@ async def rename_link(client, message: Message):
         if len(message.command) < 3:
             return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
 
-        new_name = message.text.split(None, 2)[1]
-        link = message.text.split(None, 2)[2].strip()
+        # Extract the URL from the message text
+        match = re.search(r'(https?://\S+)', message.text)
+        if not match:
+            return await message.reply("❌ No valid URL found.")
+
+        link = match.group(1).strip()
+
+        # The new name is whatever is left after removing the command and the URL
+        new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
 
         # Fix link by encoding spaces and special characters
         link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
@@ -524,7 +535,6 @@ async def rename_link(client, message: Message):
 
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
-            
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
