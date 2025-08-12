@@ -420,7 +420,7 @@ async def clear_database_handler(client: Client, msg: Message):
         await msg.reply_text(f"An error occurred: {e}")
 
  #renamelink
-
+"""
 import aiohttp
 import urllib.parse
 import re
@@ -535,6 +535,83 @@ async def rename_link(client, message: Message):
 
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
+
+
+"""
+
+import aiohttp
+import urllib.parse
+from pyrogram import Client, filters
+from pyrogram.types import Message
+
+MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
+
+@Client.on_message(filters.command("renamelink"))
+async def rename_link(client, message: Message):
+    user_id = message.from_user.id
+    async with QUEUE:
+        settings = get_settings(user_id)
+        rename_type = settings.get("rename_type", "doc")
+        prefix = settings.get("prefix", "")
+        suffix = settings.get("suffix", "")
+
+        if len(message.command) < 2:
+            return await message.reply_text("❗ Usage: `/renamelink <URL>`", quote=True)
+
+        url = message.text.split(maxsplit=1)[1].strip()
+        parsed_url = urllib.parse.urlparse(url)
+
+        if not parsed_url.scheme.startswith("http"):
+            return await message.reply_text("❌ Invalid URL!", quote=True)
+
+        async with aiohttp.ClientSession() as session:
+            async with session.head(url) as resp:
+                if resp.status != 200:
+                    return await message.reply_text("❌ Could not access the file!", quote=True)
+
+                total_size = int(resp.headers.get("Content-Length", 0))
+                if total_size > MAX_SIZE:
+                    return await message.reply_text("❌ File size exceeds 2 GB limit!", quote=True)
+
+                # Get filename from URL or Content-Disposition header
+                filename = parsed_url.path.split("/")[-1] or "file"
+                cd = resp.headers.get("Content-Disposition")
+                if cd and "filename=" in cd:
+                    filename = cd.split("filename=")[-1].strip('"')
+
+                # Apply prefix/suffix
+                name, ext = (filename.rsplit(".", 1) + [""])[:2]
+                new_filename = f"{prefix}{name}{suffix}.{ext}" if ext else f"{prefix}{name}{suffix}"
+
+        # Start download
+        task_msg = await message.reply_text(f"⬇ Downloading: **{new_filename}**", quote=True)
+
+        downloaded = 0
+        chunk_size = 1024 * 1024
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                with open(new_filename, "wb") as f:
+                    async for chunk in resp.content.iter_chunked(chunk_size):
+                        f.write(chunk)
+                        downloaded += len(chunk)
+                        await progress_bar(downloaded, total_size, task_msg)  # keep progress bar as is
+
+        # Upload
+        await task_msg.edit_text(f"⬆ Uploading: **{new_filename}**")
+        if rename_type == "doc":
+            await client.send_document(
+                chat_id=message.chat.id,
+                document=new_filename,
+                caption=new_filename
+            )
+        else:
+            await client.send_video(
+                chat_id=message.chat.id,
+                video=new_filename,
+                caption=new_filename
+            )
+
+        await task_msg.delete()
 
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
