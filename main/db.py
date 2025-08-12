@@ -2,6 +2,7 @@ from pymongo import MongoClient
 import time
 from config import MONGO_URL
 
+#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 client = MongoClient(MONGO_URL)
 db = client["rename_bot"]
 
