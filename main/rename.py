@@ -6,7 +6,7 @@ import asyncio, math
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-from main.utils import progress_bar, take_screenshots, cleanup
+from main.utils import progress_bar, take_screenshots, cleanup, progress_bar_link
 from config import *
 from main.db import (
     get_settings,
@@ -537,24 +537,17 @@ async def rename_link(client, message: Message):
             os.remove(thumb_path)
 
 """
-
 import aiohttp
 import urllib.parse
 import re
 import os
 import time
-from typing import Dict
 from pyrogram import Client, filters
 from pyrogram.types import Message
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 
-
-
-
-# --------------------
-# Command handler
-# --------------------
+# ─── Main Handler ─────────────────────────────────────────────
 @Client.on_message(filters.command("renamelink"))
 async def rename_link(client, message: Message):
     user_id = message.from_user.id
@@ -568,17 +561,17 @@ async def rename_link(client, message: Message):
         if len(message.command) < 3:
             return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
 
-        # Extract the URL from the message text
+        # Extract the URL
         match = re.search(r'(https?://\S+)', message.text)
         if not match:
             return await message.reply("❌ No valid URL found.")
 
         link = match.group(1).strip()
 
-        # The new name is whatever is left after removing the command and the URL
+        # Extract new name (remove command + link)
         new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
 
-        # Fix link by encoding spaces and special characters
+        # Encode link
         link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
 
         # Validate link
@@ -599,6 +592,7 @@ async def rename_link(client, message: Message):
 
         add_task(user_id, new_name)
 
+        # Thumbnail
         thumb_id = get_thumbnail(user_id)
         thumb_path = None
         if thumb_id:
@@ -607,9 +601,7 @@ async def rename_link(client, message: Message):
             except:
                 thumb_path = None
 
-        # --------------------
-        # Download with progress
-        # --------------------
+        # ─── Download ────────────────────────
         task = {
             "message": await message.reply("📥 Starting download..."),
             "start_time": time.time(),
@@ -625,15 +617,14 @@ async def rename_link(client, message: Message):
                     async for chunk in resp.content.iter_chunked(1024 * 1024):
                         f.write(chunk)
                         downloaded += len(chunk)
-                        progress_bar(downloaded, total_size, task)   # 👈 FIXED (await)
+                        progress_bar_link(downloaded, total_size, task)
 
         await task["message"].edit("✅ Download complete.")
 
-        # --------------------
-        # Upload with progress
-        # --------------------
+        # ─── Caption ─────────────────────────
         caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
 
+        # ─── Upload ──────────────────────────
         task = {
             "message": await message.reply("📤 Starting upload..."),
             "start_time": time.time(),
@@ -642,13 +633,19 @@ async def rename_link(client, message: Message):
         try:
             if rename_type == "video":
                 await message.reply_video(
-                    file_path, caption=caption, thumb=thumb_path,
-                    progress=progress_bar, progress_args=(task,)
+                    file_path,
+                    caption=caption,
+                    thumb=thumb_path,
+                    progress=progress_bar,
+                    progress_args=(task,)
                 )
             else:
                 await message.reply_document(
-                    file_path, caption=caption, thumb=thumb_path,
-                    progress=progress_bar, progress_args=(task,)
+                    file_path,
+                    caption=caption,
+                    thumb=thumb_path,
+                    progress=progress_bar,
+                    progress_args=(task,)
                 )
             await task["message"].edit("✅ Upload complete.")
         except Exception as e:
@@ -657,9 +654,7 @@ async def rename_link(client, message: Message):
 
         save_file(user_id, new_name, file_path)
 
-        # --------------------
-        # Screenshots for videos
-        # --------------------
+        # ─── Screenshots ─────────────────────
         if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
             ss_dir = f"ss_{user_id}"
             os.makedirs(ss_dir, exist_ok=True)
@@ -669,8 +664,8 @@ async def rename_link(client, message: Message):
 
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
-    
-        
+            
+
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
     app.run()
