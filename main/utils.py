@@ -78,3 +78,42 @@ def cleanup(path: str):
     elif os.path.isfile(path):
         os.remove(path)
       
+# ─── Progress Bar For Link Download ─────────────────────────────
+def progress_bar_link(current: int, total: int, task: dict):
+    now = time.time()
+
+    # Limit update frequency
+    if "last_edit" in task and now - task["last_edit"] < 2:
+        return
+
+    task["last_edit"] = now
+    diff = now - task["start_time"]
+    diff = diff if diff != 0 else 1
+
+    speed = current / diff
+    eta = (total - current) / speed if speed else 0
+    percent = current * 100 / total
+
+    def human_readable(size):
+        if size > 1024 * 1024 * 1024:
+            return f"{size / (1024 * 1024 * 1024):.2f} GB"
+        return f"{size / (1024 * 1024):.2f} MB"
+
+    current_str = human_readable(current)
+    total_str = human_readable(total)
+
+    bar_length = 20
+    filled_len = int(bar_length * current / total)
+    bar = "█" * filled_len + "░" * (bar_length - filled_len)
+
+    msg = (
+        f"{task['action']}... [{bar}] {percent:.0f}%\n"
+        f"Size: {current_str} / {total_str}\n"
+        f"Speed: {speed / (1024 * 1024):.2f} MB/s\n"
+        f"ETA: {int(eta)}s"
+    )
+
+    try:
+        task["message"].edit(msg)
+    except:
+        pass
