@@ -79,7 +79,7 @@ def cleanup(path: str):
         os.remove(path)
       
 # ─── Progress Bar For Link Download ─────────────────────────────
-def progress_bar_link(current: int, total: int, task: dict):
+async def progress_bar_link(current: int, total: int, task: dict):
     now = time.time()
 
     # Limit update frequency
