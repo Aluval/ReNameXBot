@@ -420,7 +420,7 @@ async def clear_database_handler(client: Client, msg: Message):
         await msg.reply_text(f"An error occurred: {e}")
 
  #renamelink
-"""
+
 import aiohttp
 import urllib.parse
 import re
@@ -535,110 +535,9 @@ async def rename_link(client, message: Message):
 
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
-"""
-
-import aiohttp
-import os
-import time
-import urllib.parse
-import re
-from pyrogram import Client, filters
-from pyrogram.types import Message
-from typing import Dict
-
-MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
-DOWNLOAD_DIR = "./downloads"  # Change as needed
 
 
-
-@Client.on_message(filters.command("renamelink"))
-async def rename_link(client: Client, message: Message):
-    if len(message.command) < 3:
-        return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
-
-    # Extract URL from message
-    match = re.search(r'(https?://\S+)', message.text)
-    if not match:
-        return await message.reply("❌ No valid URL found.")
-
-    link = match.group(1).strip()
-    # Remove command and link to get new_name
-    new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
-
-    # Encode URL
-    link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
-
-    # Validate link domain
-    if not ("seedr.cc" in link or "workers.dev" in link):
-        return await message.reply("❌ Link must be Seedr or Workers link.")
-
-    # Check file size
-    async with aiohttp.ClientSession() as session:
-        async with session.head(link) as resp:
-            size = int(resp.headers.get("Content-Length", 0))
-            if size == 0:
-                return await message.reply("❌ Could not determine file size.")
-            if size > MAX_SIZE:
-                return await message.reply("❌ File is larger than 2GB. Not allowed.")
-
-    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-    file_path = os.path.join(DOWNLOAD_DIR, new_name)
-
-    # Start download progress message
-    task_msg = await message.reply("📥 Starting download...")
-
-    # Setup task dict for download progress
-    download_task = {
-        "message": task_msg,
-        "start_time": time.time(),
-        "last_edit": 0,
-        "action": "Downloading"
-    }
-
-    downloaded = 0
-
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(link) as resp:
-                with open(file_path, "wb") as f:
-                    async for chunk in resp.content.iter_chunked(1024 * 1024):
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        progress_bar(downloaded, size, download_task)
-
-        await task_msg.edit("✅ Download complete.")
-    except Exception as e:
-        await task_msg.edit(f"❌ Download failed: {e}")
-        return
-
-    # Start upload progress message
-    upload_msg = await message.reply("📤 Starting upload...")
-
-    # Setup task dict for upload progress
-    upload_task = {
-        "message": upload_msg,
-        "start_time": time.time(),
-        "last_edit": 0,
-        "action": "Uploading"
-    }
-
-    try:
-        await client.send_document(
-            chat_id=message.chat.id,
-            document=file_path,
-            caption=f"📁 `{new_name}`",
-            progress=progress_bar,
-            progress_args=(upload_task,),
-            reply_to_message_id=message.message_id,
-        )
-        await upload_msg.edit("✅ Upload complete.")
-    except Exception as e:
-        await upload_msg.edit(f"❌ Upload failed: {e}")
-        return
-
-    # Clean up
-    if os.path.exists(file_path):
-        os.remove(file_path)
+    
         
 if __name__ == '__main__':
     app = Client("my_bot", bot_token=BOT_TOKEN)
