@@ -276,7 +276,7 @@ async def rename_file(client, message: Message):
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
 
-
+"""
 @Client.on_message(filters.command("tasks"))
 async def list_all_tasks(client, message: Message):
     import math
@@ -316,7 +316,61 @@ async def list_all_tasks(client, message: Message):
 
     markup = InlineKeyboardMarkup([buttons]) if buttons else None
     await message.reply(text, reply_markup=markup)
+"""
 
+
+# Function to reuse for both /tasks and callbacks
+def build_tasks_page(page: int = 1):
+    all_tasks_data = get_all_user_tasks()
+    all_tasks = []
+    for entry in all_tasks_data:
+        uid = entry["_id"]
+        uname = f"@{entry.get('username', '')}" if entry.get("username") else f"ID:{uid}"
+        for task in entry.get("tasks", []):
+            all_tasks.append((uid, uname, task))
+
+    total_tasks = len(all_tasks)
+    if total_tasks == 0:
+        return "❗ No tasks found for any users.", None
+
+    per_page = 10
+    total_pages = math.ceil(total_tasks / per_page)
+    if page < 1:
+        page = 1
+    if page > total_pages:
+        page = total_pages
+
+    start = (page - 1) * per_page
+    end = start + per_page
+    paged_tasks = all_tasks[start:end]
+
+    text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
+    for i, (uid, uname, task) in enumerate(paged_tasks, start=start + 1):
+        text += f"{i}. {uname} - `{task}`\n\n"
+
+    buttons = []
+    if page > 1:
+        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
+    if page < total_pages:
+        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"tasks_page:{page+1}"))
+
+    markup = InlineKeyboardMarkup([buttons]) if buttons else None
+    return text, markup
+
+
+@Client.on_message(filters.command("tasks"))
+async def list_all_tasks(client, message):
+    page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
+    text, markup = build_tasks_page(page)
+    await message.reply(text, reply_markup=markup)
+
+
+@Client.on_callback_query(filters.regex(r"^tasks_page:(\d+)$"))
+async def paginate_tasks(client, callback_query: CallbackQuery):
+    page = int(callback_query.data.split(":")[1])
+    text, markup = build_tasks_page(page)
+    await callback_query.message.edit_text(text, reply_markup=markup)
+    await callback_query.answer()  # removes the "loading..." animation
 
 
 # ------------------- GET FILE (SELF OR OTHERS) -------------------
