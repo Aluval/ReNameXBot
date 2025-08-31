@@ -6,7 +6,7 @@ import asyncio, math
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 
-from main.utils import progress_bar, take_screenshots, cleanup
+from main.utils import progress_bar, take_screenshots
 from config import *
 from main.db import (
     get_settings,
@@ -271,52 +271,12 @@ async def rename_file(client, message: Message):
             os.makedirs(ss_dir, exist_ok=True)
             for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
                 await message.reply_photo(ss)
-            cleanup(ss_dir)
+    #        cleanup(ss_dir)
 
-        if thumb_path and os.path.exists(thumb_path):
-            os.remove(thumb_path)
+   #     if thumb_path and os.path.exists(thumb_path):
+ #           os.remove(thumb_path)
 
-"""
-@Client.on_message(filters.command("tasks"))
-async def list_all_tasks(client, message: Message):
-    import math
-    from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-    page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
-    if page < 1:
-        page = 1
-
-    all_tasks_data = get_all_user_tasks()
-    all_tasks = []
-    for entry in all_tasks_data:
-        uid = entry["_id"]  # FIXED
-        uname = f"@{entry.get('username', '')}" if entry.get("username") else f"ID:{uid}"
-        for task in entry.get("tasks", []):
-            all_tasks.append((uid, uname, task))
-
-    total_tasks = len(all_tasks)
-    if total_tasks == 0:
-        return await message.reply("❗ No tasks found for any users.")
-
-    per_page = 10
-    total_pages = math.ceil(total_tasks / per_page)
-    start = (page - 1) * per_page
-    end = start + per_page
-    paged_tasks = all_tasks[start:end]
-
-    text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
-    for i, (uid, uname, task) in enumerate(paged_tasks, start=start + 1):
-        text += f"{i}. {uname} - `{task}`\n\n"  # Added extra line for clarity
-
-    buttons = []
-    if page > 1:
-        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
-    if page < total_pages:
-        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"tasks_page:{page+1}"))
-
-    markup = InlineKeyboardMarkup([buttons]) if buttons else None
-    await message.reply(text, reply_markup=markup)
-"""
 
 
 # Function to reuse for both /tasks and callbacks
@@ -584,10 +544,10 @@ async def rename_link(client, message: Message):
             os.makedirs(ss_dir, exist_ok=True)
             for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
                 await message.reply_photo(ss)
-            cleanup(ss_dir)
+       #     cleanup(ss_dir)
 
-        if thumb_path and os.path.exists(thumb_path):
-            os.remove(thumb_path)
+      #  if thumb_path and os.path.exists(thumb_path):
+    #        os.remove(thumb_path)
 
 
 
