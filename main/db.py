@@ -84,12 +84,12 @@ def get_all_user_tasks():
     return list(tasks_col.find({}, {"_id": 1, "tasks": 1}))
 
 # ---------------- FILES ----------------
-def save_file(user_id, file_name, file_id):
+def save_file(user_id, file_name, file_path):
     files_col.update_one(
         {"_id": user_id},
         {"$push": {"files": {
             "name": file_name,
-            "file_id": file_id,
+            "path": file_path,
             "time": time.time()
         }}},
         upsert=True
@@ -101,7 +101,7 @@ def get_saved_file(user_id, filename):
         return None
     for file in user_data.get("files", []):
         if file["name"] == filename:
-            return file["file_id"]  # return file_id instead of path
+            return file["file_path"]  # return file_id instead of path
     return None
 
 def get_user_files(user_id):
