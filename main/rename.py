@@ -20,7 +20,7 @@ from main.db import (
     add_task,
     get_user_tasks,
     get_all_user_tasks,
-    remove_task_by_filename,
+    remove_task_and_file_by_id,
     save_file,
     get_saved_file,
     get_user_files,
@@ -406,7 +406,16 @@ def build_tasks_page(page: int = 1):
 
     text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
     for i, (uid, uname, task) in enumerate(paged_tasks, start=start + 1):
-        text += f"{i}. {uname} - `{task}`\n\n"
+        filename = task.get("filename", "Unknown")
+        file_id = task.get("file_id", "N/A")
+        status = task.get("status", "pending")
+
+        text += (
+            f"{i}. 👤 {uname}\n"
+            f"   📂 File: `{filename}`\n"
+            f"   🆔 File ID: `{file_id}`\n"
+            f"   📌 Status: `{status}`\n\n"
+        )
 
     buttons = []
     if page > 1:
@@ -529,15 +538,15 @@ async def get_file(client, message: Message):
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_user_task_cmd(client, message: Message):
     if len(message.command) < 3:
-        return await message.reply("❗ Usage: /removetask <user_id> <file_name>")
+        return await message.reply("❗ Usage: /removetask <user_id> <file_id>")
     try:
         target_id = int(message.command[1])
-        file_name = " ".join(message.command[2:]).strip()
+        file_id = message.command[2].strip()
 
-        if remove_task_by_filename(target_id, file_name):
-            await message.reply(f"✅ Task with filename `{file_name}` removed for user {target_id}.")
+        if remove_task_and_file_by_id(target_id, file_id):
+            await message.reply(f"✅ Task & file with ID `{file_id}` removed for user {target_id}.")
         else:
-            await message.reply(f"❗ No task found with filename `{file_name}` for user {target_id}.")
+            await message.reply(f"❗ No task/file with ID `{file_id}` found for user {target_id}.")
     except ValueError:
         await message.reply("❗ Invalid user ID.")
         
