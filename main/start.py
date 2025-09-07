@@ -38,7 +38,8 @@ async def start_command(client: Client, message: Message):
         caption=(
             "👋 Welcome to ReNameXBot!\n\n"
             "📁 Rename any document/video using:\n"
-            "`/rename newname.ext` (by replying to a file)\n\n"
+            "`/rename newname.ext` (by replying to a file)\n"
+            "`/renamelink newname.ext <link>` (for direct links)\n\n"
             "⚙️ Adjust your settings with `/settings`:\n"
             "➕ Add Prefix\n"
             "🖼️ Set Thumbnail\n"
@@ -55,6 +56,7 @@ async def about_panel(client: Client, cb: CallbackQuery):
     await cb.message.edit_text(
         "ℹ️ **About ReNameXBot**\n\n"
         "➕ Rename files with prefix\n"
+        "➕ Rename Link(Direct Links) files with prefix\n"
         "🖼️ Add thumbnails\n"
         "📸 Generate video screenshots\n"
         "🧠 Caption customization\n\n"
@@ -65,15 +67,18 @@ async def about_panel(client: Client, cb: CallbackQuery):
         disable_web_page_preview=True
     )
 
+
 # Callback for Help
 @Client.on_callback_query(filters.regex("help_info"))
 async def help_panel(client: Client, cb: CallbackQuery):
     await cb.message.edit_text(
         "🛠 **Help Panel**\n\n"
         "`/rename newname.ext` - Rename file\n"
+        "`/renamelink newname.ext <url>` - Rename from direct links (Pixeldrain, FastCloud, Workers.dev, Seedr, etc.)\n"
         "`/setprefix <text>` - Set file name prefix\n"
         "`/setcaption <text>` - Custom caption\n"
-        "`/getfile <filename>` - Retrieve a saved file\n"
+        "`/getfile <filename>` - Retrieve a saved file - Ownerfile\n"
+        "`/getfile <userid> <filename>` - Retrieve a saved file - Othersfile\n"
         "`/settings` - Open settings\n"
         "`/tasks` - Show task list\n"
         "`/clear` - Clear your files\n"
@@ -159,18 +164,18 @@ async def refresh_stats(client: Client, cb: CallbackQuery):
         await cb.answer("⚠️ Failed to refresh.", show_alert=True)
 
 
-
-
-        
 # /help command
 @Client.on_message(filters.command("help"))
 async def help_command(client: Client, message: Message):
     await message.reply_text(
         "**🛠 Help Menu for ReNameXBot**\n\n"
         "`/rename newname.ext` - Reply to a file to rename it\n"
+        "`/renamelink newname.ext <url>` - Rename from direct links\n"
+        "   (Supports: Seedr, Pixeldrain, FastCloud, Cloudflare - Workers.dev, Googleusercontent, Heroku(Some links) etc.)\n"
         "`/setprefix <text>` - Set custom prefix\n"
         "`/setcaption <text>` - Set custom caption\n"
-        "`/getfile <filename>` - Retrieve a saved file\n"
+        "`/getfile <filename>` - Retrieve a saved file - Ownerfile\n"
+        "`/getfile <userid> <filename>` - Retrieve a saved file - Othersfile\n"
         "`/settings` - Bot settings panel\n"
         "`/tasks` - View your rename tasks\n"
         "`/clear` - Clear DB (Admins only)\n"
@@ -185,6 +190,8 @@ async def about_command(client: Client, message: Message):
         "**📦 About ReNameXBot**\n\n"
         "🔹 Rename files with thumbnail, captions, and prefix\n"
         "🔹 Auto screenshot for videos (custom count)\n"
+        "🔹 Rename files from direct links with `/renamelink`\n"
+        "   (Supported: seedr, Pixeldrain, FastCloud, Workers.dev, Googleusercontent, heroku(somelinks) etc.)\n"
         "🔹 Stores renamed files for download\n"
         "🔹 Custom document/video mode toggle\n\n"
         "Built by: @Sunrises_24\n"
