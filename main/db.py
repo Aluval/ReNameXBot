@@ -71,19 +71,21 @@ def add_task(user_id, task, username=None):
         update_data["$set"] = {"username": username}
     tasks_col.update_one({"_id": user_id}, update_data, upsert=True)
 
-def remove_task_by_filename(user_id: int, file_name: str) -> bool:
-    data = get_user_tasks(user_id)  # returns list of strings (filenames)
-    if not data:
-        return False
+def remove_task_and_file(user_id: int, file_name: str) -> bool:
+    # Remove from tasks collection
+    tasks_col.update_one(
+        {"_id": user_id},
+        {"$pull": {"tasks": file_name}}
+    )
 
-    if file_name in data:
-        tasks_col.update_one(
-            {"_id": user_id},
-            {"$pull": {"tasks": file_name}}
-        )
-        return True
+    # Remove from files collection
+    result = files_col.update_one(
+        {"_id": user_id},
+        {"$pull": {"files": {"name": file_name}}}
+    )
 
-    return False
+    # Return True if file was actually removed
+    return result.modified_count > 0
     
 def get_all_user_tasks():
     """Return all users' tasks from DB."""
