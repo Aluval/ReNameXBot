@@ -20,7 +20,7 @@ from main.db import (
     add_task,
     get_user_tasks,
     get_all_user_tasks,
-    remove_task_by_file_id,
+    remove_task,
     save_file,
     get_saved_file,
     get_user_files,
