@@ -534,7 +534,6 @@ async def remove_user_task_cmd(client, message: Message):
         target_id = int(message.command[1])
         file_name = " ".join(message.command[2:]).strip()
 
-        # Try removing by file name
         if remove_task_by_filename(target_id, file_name):
             await message.reply(f"✅ Task with filename `{file_name}` removed for user {target_id}.")
         else:
