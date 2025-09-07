@@ -406,16 +406,9 @@ def build_tasks_page(page: int = 1):
 
     text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
     for i, (uid, uname, task) in enumerate(paged_tasks, start=start + 1):
-        filename = task.get("filename", "Unknown")
-        file_id = task.get("file_id", "N/A")
-        status = task.get("status", "pending")
-
-        text += (
-            f"{i}. 👤 {uname}\n"
-            f"   📂 File: `{filename}`\n"
-            f"   🆔 File ID: `{file_id}`\n"
-            f"   📌 Status: `{status}`\n\n"
-        )
+        filename = task.get("filename", "Unknown") if isinstance(task, dict) else str(task)
+        file_id = task.get("file_id", "N/A") if isinstance(task, dict) else "N/A"
+        text += f"{i}. {uname}\n   📂 `{filename}`\n   🆔 `{file_id}`\n\n"
 
     buttons = []
     if page > 1:
@@ -536,19 +529,17 @@ async def get_file(client, message: Message):
 
 # ------------------- REMOVE TASK (ADMIN ONLY) -------------------
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
-async def remove_user_task_cmd(client, message: Message):
-    if len(message.command) < 3:
-        return await message.reply("❗ Usage: /removetask <user_id> <file_id>")
-    try:
-        target_id = int(message.command[1])
-        file_id = message.command[2].strip()
+async def remove_task_cmd(client, message):
+    if len(message.command) < 2:
+        return await message.reply("⚠️ Usage: `/remove <file_id>`")
 
-        if remove_task_and_file_by_id(target_id, file_id):
-            await message.reply(f"✅ Task & file with ID `{file_id}` removed for user {target_id}.")
-        else:
-            await message.reply(f"❗ No task/file with ID `{file_id}` found for user {target_id}.")
-    except ValueError:
-        await message.reply("❗ Invalid user ID.")
+    file_id = message.command[1]
+    user_id = message.from_user.id
+
+    if remove_task_by_file_id(user_id, file_id):
+        await message.reply(f"✅ Task with file_id `{file_id}` removed.")
+    else:
+        await message.reply("❌ No matching task found.")
         
 @Client.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
