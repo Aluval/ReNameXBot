@@ -470,6 +470,7 @@ async def get_file(client, message: Message):
         quote=True
     )
 """
+# ─── Get File Command ─────────────────────────────────────────────────────────
 @Client.on_message(filters.command("getfile"))
 async def get_file(client, message: Message):
     parts = message.command
@@ -481,44 +482,32 @@ async def get_file(client, message: Message):
             quote=True
         )
 
-    # Detect if user_id was provided
     if len(parts) >= 3 and parts[1].isdigit():
         uid = int(parts[1])
-        raw_input = " ".join(parts[2:])
+        filename = " ".join(parts[2:])
     else:
         uid = message.from_user.id
-        raw_input = " ".join(parts[1:])
+        filename = " ".join(parts[1:])
 
     status_msg = await message.reply("⏳ Searching files, please wait…", quote=True)
-    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
+    filename = filename.strip().lower()
 
-    # Fetch files directly from DB (no local storage)
     files = get_user_files(uid)
     if not files:
         await status_msg.delete()
         return await message.reply("❗ No files found for that user.", quote=True)
 
-    # Match file by name (case-insensitive)
     match = next((f for f in files if filename in f["name"].lower()), None)
 
     if match:
-        file_id = match.get("file_id")  # 🔑 should be stored when uploading
-        file_name = match.get("name")
+        await status_msg.edit_text("✅ File found! Uploading now…")
+        sent_msg = await message.reply_document(
+            match["file_id"],
+            caption=f"📂 File from `{uid}`\n**Name:** `{match['name']}`"
+        )
+        await status_msg.edit_text("📤 Upload completed successfully!")
+        return sent_msg
 
-        if file_id:
-            await status_msg.edit_text("✅ File found! Sending now…")
-            sent_msg = await client.send_document(
-                chat_id=message.chat.id,
-                document=file_id,
-                caption=f"📂 File from `{uid}`\n`{file_name}`"
-            )
-            await status_msg.edit_text("📤 Upload completed successfully!")
-            return sent_msg
-        else:
-            await status_msg.delete()
-            return await message.reply("⚠️ File record exists but no `file_id` stored.", quote=True)
-
-    # No match found
     await status_msg.delete()
     return await message.reply(
         f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Available files:\n" +
