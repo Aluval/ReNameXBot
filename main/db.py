@@ -84,25 +84,17 @@ def get_all_user_tasks():
     return list(tasks_col.find({}, {"_id": 1, "tasks": 1}))
 
 # ---------------- FILES ----------------
-def save_file(user_id, file_name, file_path):
+# ─── Save File (store file_id instead of local path) ───────────────────────────
+def save_file(user_id, file_name, file_id):
     files_col.update_one(
         {"_id": user_id},
         {"$push": {"files": {
             "name": file_name,
-            "path": file_path,
+            "file_id": file_id,
             "time": time.time()
         }}},
         upsert=True
     )
-
-def get_saved_file(user_id, filename):
-    user_data = files_col.find_one({"_id": user_id})
-    if not user_data:
-        return None
-    for file in user_data.get("files", []):
-        if file["name"] == filename:
-            return file["file_path"]  # return file_id instead of path
-    return None
 
 def get_user_files(user_id):
     data = files_col.find_one({"_id": user_id})
@@ -110,6 +102,7 @@ def get_user_files(user_id):
 
 def clear_user_files(user_id):
     files_col.delete_one({"_id": user_id})
+
 # ---------------- CLEAR DB ----------------
 def clear_database():
     settings_col.drop()
