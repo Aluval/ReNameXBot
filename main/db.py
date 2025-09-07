@@ -73,7 +73,7 @@ def add_task(user_id, task, username=None):
 
 
 def remove_task_by_file_id(user_id, file_id):
-    """Remove task by file_id from a specific user."""
+    """Remove a specific task by file_id from a user's tasks."""
     user = tasks_col.find_one({"_id": user_id})
     if not user:
         return False
