@@ -488,6 +488,14 @@ async def rename_link(client, message: Message):
             if not any(task.get("file_id") == file_id for task in existing_tasks if isinstance(task, dict)):
                 add_task(user_id, {"filename": new_name, "file_id": file_id})
 
+        # Optional screenshot for videos
+        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
+            ss_dir = f"ss_{user_id}"
+            os.makedirs(ss_dir, exist_ok=True)
+            for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
+                await message.reply_photo(ss)
+            cleanup(ss_dir)
+
         # Cleanup thumbnail
         if thumb_path and os.path.exists(thumb_path):
             os.remove(thumb_path)
