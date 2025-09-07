@@ -73,24 +73,25 @@ def add_task(user_id, task, username=None):
 
 
 def remove_task_by_file_id(user_id, file_id):
+    """Remove task by file_id from a specific user."""
     user = tasks_col.find_one({"_id": user_id})
     if not user:
         return False
 
     tasks = user.get("tasks", [])
-    new_tasks = [task for task in tasks if task.get("file_id") != file_id]
+    new_tasks = [
+        task for task in tasks
+        if not (isinstance(task, dict) and task.get("file_id") == file_id)
+    ]
 
     if len(new_tasks) != len(tasks):
         tasks_col.update_one({"_id": user_id}, {"$set": {"tasks": new_tasks}})
         return True
     return False
-
-    # Return True if file entry was removed
-    return result.modified_count > 0
     
 def get_all_user_tasks():
     """Return all users' tasks from DB."""
-    return list(tasks_col.find({}, {"_id": 1, "tasks": 1}))
+    return list(tasks_col.find({}, {"_id": 1, "tasks": 1, "username": 1}))
 
 # ---------------- FILES ----------------
 def save_file(user_id, file_name, file_id):
@@ -129,3 +130,8 @@ def clear_database():
     captions_col.drop()
     tasks_col.drop()
     files_col.drop()
+
+
+
+
+
