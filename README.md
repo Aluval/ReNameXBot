@@ -36,6 +36,7 @@ Press Below Button to Deploy!
 ## Features
 
 - `Rename` — Rename files/videos and re-upload them with a custom name.
+- `Renamelink` — Rename and re-upload directly from supported links (Pixeldrain, FastCloud, Workers.dev, Googleusercontent, Cloudflare - Workers.dev, Seedr, Heroku(SomeLinks) etc.) and display domain name for identification.
 - `Settings` — Per-user settings panel (screenshot toggle, count, prefix, rename type).
 - `Thumbnail` — Save & use custom thumbnails for uploads.
 - `Screenshots` — Auto-capture screenshots from videos (configurable count).
@@ -43,7 +44,6 @@ Press Below Button to Deploy!
 - `Getfile` — Retrieve previously saved/uploaded files.
 - `Custom Caption / Prefix` — Set caption text and prefix for uploaded files.
 - `Admin` — Remove tasks and clear old database collections.
-
 ---
 
 ###  **𝑅𝐸𝑄𝑈𝐼𝑅𝐸𝐷 𝑉𝐴𝑅𝐼𝑀𝐴𝐵𝐿𝐸𝑆 (ENV / config.py)** 
@@ -77,7 +77,7 @@ Press Below Button to Deploy!
 
 ### Commands (Core)
 
-/start         - Bot alive check & welcome /settings      - Open settings panel (screenshot, count, prefix, type, thumb, caption) /rename        - Reply to a file + /rename <new_name> to rename & re-upload /tasks [page]  - List all tasks (admin view available) |getfile       - /getfile <filename> (or /getfile <user_id> <filename>) to download stored files /removetask    - /removetask <user_id> <task_index> (Admin only) /setprefix     - /setprefix <text> to set prefix /setcaption    - /setcaption <text> to set custom caption /clear         - Clear database (Admin only) help           - Get help & usage info about          - Learn about the bot ping           - Check bot latency / status
+/start         - Bot alive check & welcome /settings      - Open settings panel (screenshot, count, prefix, type, thumb, caption) /rename        - Reply to a file + /rename <new_name> to rename & re-upload /renamelink — Rename and re-upload directly from supported links /tasks [page]  - List all tasks (admin view available) |getfile       - /getfile <filename> (ownerfile) (or /getfile <user_id> <filename>(othersfile) to download stored files /removetask    - /removetask <user_id> <file.id> (Admin only) /setprefix     - /setprefix <text> to set prefix /setcaption    - /setcaption <text> to set custom caption /clear         - Clear database (Admin only) help           - Get help & usage info about          - Learn about the bot ping           - Check bot latency / status
 
 ---
 
@@ -89,6 +89,14 @@ Press Below Button to Deploy!
      /rename new_name.mp4
      ```
    - Bot will download, rename, and re-upload the file.
+  
+2.**Rename a file**
+   - Reply to a document/video with:
+
+     ```
+      /renamelink — Rename and re-upload directly from supported links 
+     ```
+(Pixeldrain, FastCloud, Workers.dev, Googleusercontent, Cloudflare - Workers.dev, Seedr, Heroku(SomeLinks) etc.)
 
 2. **Set a custom prefix**
 
@@ -99,7 +107,7 @@ Press Below Button to Deploy!
 
 4. **Get a stored file**
 
-/getfile movie.mkv or /getfile userid movie.mkv
+/getfile movie.mkv (OwnerFile) or /getfile userid movie.mkv(othersfile)
 
 - Bot searches your saved files and returns a match (case-insensitive, partial match supported).
 
@@ -111,7 +119,7 @@ The bot stores user data in MongoDB. Typical collections:
 - `settings` — per-user settings (screenshot, count, prefix, rename_type)
 - `thumbnails` — saved thumbnail file_ids
 - `captions` — custom captions
-- `tasks` — user tasks (rename/upload tracking)
+- `tasks` — user tasks (rename/upload tracking) - /removetask <user.id> <file.id>
 - `user_files` — stored file metadata `{ user_id, name, path }`
 
 ---
