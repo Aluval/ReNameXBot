@@ -402,52 +402,7 @@ def cleanup(path):
 
 
 """
-# ------------------- GET FILE (SELF OR OTHERS) -------------------
-@Client.on_message(filters.command("getfile"))
-async def get_file(client, message: Message):
-    parts = message.command
-    if len(parts) < 2:
-        return await message.reply(
-            "❗ Usage:\n"
-            "`/getfile <filename>` (your files)\n"
-            "`/getfile <user_id> <filename>` (other user's files)",
-            quote=True
-        )
 
-    if len(parts) >= 3 and parts[1].isdigit():
-        uid = int(parts[1])
-        raw_input = " ".join(parts[2:])
-    else:
-        uid = message.from_user.id
-        raw_input = " ".join(parts[1:])
-
-    status_msg = await message.reply("⏳ Searching files, please wait…", quote=True)
-    filename = re.sub(r"^@\w+\s*[-:]\s*", "", raw_input).strip().lower()
-
-    files = get_user_files(uid)
-    if not files:
-        await status_msg.delete()
-        return await message.reply("❗ No files found for that user.", quote=True)
-
-    match = next((f["path"] for f in files if filename in f["name"].lower()), None)
-
-    if match:
-        if os.path.exists(match):
-            await status_msg.edit_text("✅ File found! Uploading now…")
-            sent_msg = await message.reply_document(match, caption=f"📂 File from `{uid}`")
-            await status_msg.edit_text("📤 Upload completed successfully!")
-            return sent_msg
-        else:
-            await status_msg.delete()
-            return await message.reply(f"⚠️ File entry found but missing on disk:\n`{match}`", quote=True)
-
-    await status_msg.delete()
-    return await message.reply(
-        f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Available files:\n" +
-        "\n".join([f"`{f['name']}`" for f in files]),
-        quote=True
-    )
-"""
 # ─── Get File Command ─────────────────────────────────────────────────────────
 @Client.on_message(filters.command("getfile"))
 async def get_file(client, message: Message):
@@ -492,6 +447,53 @@ async def get_file(client, message: Message):
         "\n".join([f"`{f['name']}`" for f in files]),
         quote=True
     )
+"""
+@Client.on_message(filters.command("getfile"))
+async def get_file(client, message: Message):
+    parts = message.command
+    if len(parts) < 2:
+        return await message.reply(
+            "❗ Usage:\n"
+            "`/getfile <filename>` (your files)\n"
+            "`/getfile <user_id> <filename>` (other user's files)",
+            quote=True
+        )
+
+    # Determine user_id and filename
+    if len(parts) >= 3 and parts[1].isdigit():
+        uid = int(parts[1])
+        filename = " ".join(parts[2:]).strip().lower()
+    else:
+        uid = message.from_user.id
+        filename = " ".join(parts[1:]).strip().lower()
+
+    status_msg = await message.reply("⏳ Searching files, please wait…", quote=True)
+
+    files = get_user_files(uid)
+    if not files:
+        await status_msg.delete()
+        return await message.reply("❗ No files found for that user.", quote=True)
+
+    # Case-insensitive match (partial allowed)
+    match = next((f for f in files if filename in f["name"].lower()), None)
+
+    if match:
+        await status_msg.edit_text("✅ File found! Uploading now…")
+        sent_msg = await message.reply_document(
+            match["file_id"],
+            caption=f"📂 File from `{uid}`\n**Name:** `{match['name']}`"
+        )
+        await status_msg.edit_text("📤 Upload completed successfully!")
+        return sent_msg
+
+    # If no match, list available files
+    await status_msg.delete()
+    file_list_text = "\n".join([f"`{f['name']}`" for f in files]) or "No files available"
+    return await message.reply(
+        f"❗ File not found.\n\n🔎 You entered:\n`{filename}`\n\n📂 Available files:\n{file_list_text}",
+        quote=True
+    )
+
     
 # ---------------- TASKS ----------------
 def build_tasks_page(page: int = 1, per_page: int = 10):
