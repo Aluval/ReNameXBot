@@ -370,6 +370,15 @@ async def rename_file(client, message: Message):
         if os.path.exists(file_path):  # remove local copy
             os.remove(file_path)
 
+import shutil, os
+
+def cleanup(path):
+    try:
+        if os.path.exists(path):
+            shutil.rmtree(path)
+    except Exception as e:
+        print(f"Cleanup failed: {e}")
+
 # Function to reuse for both /tasks and callbacks
 def build_tasks_page(page: int = 1):
     all_tasks_data = get_all_user_tasks()
