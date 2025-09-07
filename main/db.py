@@ -72,11 +72,13 @@ def add_task(user_id, task, username=None):
     tasks_col.update_one({"_id": user_id}, update_data, upsert=True)
 
 def remove_task_by_filename(user_id: int, file_name: str) -> bool:
-    if user_id not in TASKS:
-        return False
-    for i, task in enumerate(TASKS[user_id]):
-        if task.get("name") == file_name:  # assuming you stored filename as "name"
-            TASKS[user_id].pop(i)
+    data = get_user_tasks(user_id)  # fetch tasks list from DB
+    for task in data:
+        if task.get("name") == file_name:  # assuming you save filename under "name"
+            tasks_col.update_one(
+                {"_id": user_id},
+                {"$pull": {"tasks": task}}
+            )
             return True
     return False
 
