@@ -17,8 +17,7 @@ DEFAULT_SETTINGS = {
     "count": 3,
     "rename_type": "doc",
     "prefix_enabled": True,
-    "prefix_text": "@sunriseseditsoffical6 -",
-    "theme": "Light"
+    "prefix_text": "@sunriseseditsoffical6 -",    
 }
 
 # ---------------- SETTINGS ----------------
