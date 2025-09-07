@@ -20,7 +20,7 @@ from main.db import (
     add_task,
     get_user_tasks,
     get_all_user_tasks,
-    remove_task,
+    remove_task_by_filename,
     save_file,
     get_saved_file,
     get_user_files,
@@ -529,17 +529,18 @@ async def get_file(client, message: Message):
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_user_task_cmd(client, message: Message):
     if len(message.command) < 3:
-        return await message.reply("❗ Usage: /removetask <user_id> <task_index>")
+        return await message.reply("❗ Usage: /removetask <user_id> <file_name>")
     try:
         target_id = int(message.command[1])
-        index = int(message.command[2]) - 1
-        if remove_task(target_id, index):
-            await message.reply(f"✅ Task {index + 1} removed for user {target_id}.")
-        else:
-            await message.reply("❗ Invalid task index.")
-    except ValueError:
-        await message.reply("❗ Invalid user ID or index.")
+        file_name = " ".join(message.command[2:]).strip()
 
+        # Try removing by file name
+        if remove_task_by_filename(target_id, file_name):
+            await message.reply(f"✅ Task with filename `{file_name}` removed for user {target_id}.")
+        else:
+            await message.reply(f"❗ No task found with filename `{file_name}` for user {target_id}.")
+    except ValueError:
+        await message.reply("❗ Invalid user ID.")
         
 @Client.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
