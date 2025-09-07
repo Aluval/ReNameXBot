@@ -84,7 +84,6 @@ def get_all_user_tasks():
     return list(tasks_col.find({}, {"_id": 1, "tasks": 1}))
 
 # ---------------- FILES ----------------
-# ─── Save File (store file_id instead of local path) ───────────────────────────
 def save_file(user_id, file_name, file_id):
     files_col.update_one(
         {"_id": user_id},
@@ -102,12 +101,14 @@ def get_saved_file(user_id, filename):
         return None
     for file in user_data.get("files", []):
         if file["name"] == filename:
-            return file["file_id"]   # ✅ return file_id, not file_path
+            return file.get("file_id")   # ✅ safe access
     return None
-    
+
 def get_user_files(user_id):
     data = files_col.find_one({"_id": user_id})
-    return data.get("files", []) if data else []
+    if not data:
+        return []
+    return [f for f in data.get("files", []) if "file_id" in f]
 
 def clear_user_files(user_id):
     files_col.delete_one({"_id": user_id})
