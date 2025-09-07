@@ -90,13 +90,13 @@ Press Below Button to Deploy!
      ```
    - Bot will download, rename, and re-upload the file.
   
-2.**Rename a file**
-   - Reply to a document/video with:
-
+2.**Renamelink with DirectLink**
+   
      ```
-      /renamelink — Rename and re-upload directly from supported links 
+      /renamelink <filename> <link>     
      ```
-(Pixeldrain, FastCloud, Workers.dev, Googleusercontent, Cloudflare - Workers.dev, Seedr, Heroku(SomeLinks) etc.)
+   - Rename and re-upload directly from supported links
+     (Pixeldrain, FastCloud, Workers.dev, Googleusercontent, Cloudflare - Workers.dev, Seedr, Heroku(SomeLinks) etc.)
 
 2. **Set a custom prefix**
 
