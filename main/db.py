@@ -60,20 +60,25 @@ def get_caption(user_id):
     return data["caption"] if data else None
 
 # ---------------- TASKS ----------------
+
+# Get all tasks of a user
 def get_user_tasks(user_id):
     data = tasks_col.find_one({"_id": user_id})
     return data["tasks"] if data else []
 
-def add_task(user_id, task, username=None):
-    """Add task and store username if provided."""
-    update_data = {"$push": {"tasks": task}}
-    if username:
-        update_data["$set"] = {"username": username}
-    tasks_col.update_one({"_id": user_id}, update_data, upsert=True)
+# Add a task for a user (store only user_id)
+def add_task(user_id, task):
+    """
+    task: dict with {"filename": ..., "file_id": ...}
+    """
+    tasks_col.update_one({"_id": user_id}, {"$push": {"tasks": task}}, upsert=True)
 
-
-def remove_task_by_file_id(user_id, file_id):
-    """Remove a specific task by file_id from a user's tasks."""
+# Remove a task by file_id or filename
+def remove_task(user_id, identifier):
+    """
+    Remove task either by file_id or filename
+    identifier: str (file_id or filename)
+    """
     user = tasks_col.find_one({"_id": user_id})
     if not user:
         return False
@@ -81,27 +86,27 @@ def remove_task_by_file_id(user_id, file_id):
     tasks = user.get("tasks", [])
     new_tasks = [
         task for task in tasks
-        if not (isinstance(task, dict) and task.get("file_id") == file_id)
+        if not (
+            (isinstance(task, dict) and (task.get("file_id") == identifier or task.get("filename") == identifier))
+            or (isinstance(task, str) and task == identifier)
+        )
     ]
 
     if len(new_tasks) != len(tasks):
         tasks_col.update_one({"_id": user_id}, {"$set": {"tasks": new_tasks}})
         return True
     return False
-    
+
+# Get all tasks for all users
 def get_all_user_tasks():
-    """Return all users' tasks from DB."""
-    return list(tasks_col.find({}, {"_id": 1, "tasks": 1, "username": 1}))
+    return list(tasks_col.find({}, {"_id": 1, "tasks": 1}))
 
 # ---------------- FILES ----------------
+
 def save_file(user_id, file_name, file_id):
     files_col.update_one(
         {"_id": user_id},
-        {"$push": {"files": {
-            "name": file_name,
-            "file_id": file_id,
-            "time": time.time()
-        }}},
+        {"$push": {"files": {"name": file_name, "file_id": file_id, "time": time.time()}}},
         upsert=True
     )
 
@@ -111,7 +116,7 @@ def get_saved_file(user_id, filename):
         return None
     for file in user_data.get("files", []):
         if file["name"] == filename:
-            return file.get("file_id")   # ✅ safe access
+            return file.get("file_id")
     return None
 
 def get_user_files(user_id):
