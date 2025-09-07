@@ -379,60 +379,6 @@ def cleanup(path):
     except Exception as e:
         print(f"Cleanup failed: {e}")
 
-# Function to reuse for both /tasks and callbacks
-def build_tasks_page(page: int = 1):
-    all_tasks_data = get_all_user_tasks()
-    all_tasks = []
-    for entry in all_tasks_data:
-        uid = entry["_id"]
-        uname = f"@{entry.get('username', '')}" if entry.get("username") else f"ID:{uid}"
-        for task in entry.get("tasks", []):
-            all_tasks.append((uid, uname, task))
-
-    total_tasks = len(all_tasks)
-    if total_tasks == 0:
-        return "❗ No tasks found for any users.", None
-
-    per_page = 10
-    total_pages = math.ceil(total_tasks / per_page)
-    if page < 1:
-        page = 1
-    if page > total_pages:
-        page = total_pages
-
-    start = (page - 1) * per_page
-    end = start + per_page
-    paged_tasks = all_tasks[start:end]
-
-    text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
-    for i, (uid, uname, task) in enumerate(paged_tasks, start=start + 1):
-        filename = task.get("filename", "Unknown") if isinstance(task, dict) else str(task)
-        file_id = task.get("file_id", "N/A") if isinstance(task, dict) else "N/A"
-        text += f"{i}. {uname}\n   📂 `{filename}`\n   🆔 `{file_id}`\n\n"
-
-    buttons = []
-    if page > 1:
-        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
-    if page < total_pages:
-        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"tasks_page:{page+1}"))
-
-    markup = InlineKeyboardMarkup([buttons]) if buttons else None
-    return text, markup
-
-
-@Client.on_message(filters.command("tasks"))
-async def list_all_tasks(client, message):
-    page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
-    text, markup = build_tasks_page(page)
-    await message.reply(text, reply_markup=markup)
-
-
-@Client.on_callback_query(filters.regex(r"^tasks_page:(\d+)$"))
-async def paginate_tasks(client, callback_query: CallbackQuery):
-    page = int(callback_query.data.split(":")[1])
-    text, markup = build_tasks_page(page)
-    await callback_query.message.edit_text(text, reply_markup=markup)
-    await callback_query.answer()  # removes the "loading..." animation
 
 """
 # ------------------- GET FILE (SELF OR OTHERS) -------------------
@@ -526,21 +472,81 @@ async def get_file(client, message: Message):
         quote=True
     )
     
+# ---------------- TASKS ----------------
 
-# ------------------- REMOVE TASK (ADMIN ONLY) -------------------
+def build_tasks_page(page: int = 1, per_page: int = 10):
+    """Build paginated task list for display."""
+    all_tasks_data = get_all_user_tasks()
+    all_tasks = []
+
+    for entry in all_tasks_data:
+        uname = f"@{entry.get('username', 'Unknown')}"
+        for task in entry.get("tasks", []):
+            all_tasks.append((uname, task))
+
+    total_tasks = len(all_tasks)
+    if total_tasks == 0:
+        return "❗ No tasks found for any users.", None
+
+    total_pages = math.ceil(total_tasks / per_page)
+    page = max(1, min(page, total_pages))  # Ensure page is in bounds
+
+    start = (page - 1) * per_page
+    end = start + per_page
+    paged_tasks = all_tasks[start:end]
+
+    text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
+    for i, (uname, task) in enumerate(paged_tasks, start=start + 1):
+        if isinstance(task, dict):
+            filename = task.get("filename", "Unknown")
+            file_id = task.get("file_id", "N/A")
+        else:
+            filename = str(task)
+            file_id = "N/A"
+        text += f"{i}. {uname}\n   📂 `{filename}`\n   🆔 `{file_id}`\n\n"
+
+    buttons = []
+    if page > 1:
+        buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
+    if page < total_pages:
+        buttons.append(InlineKeyboardButton("➡️ Next", callback_data=f"tasks_page:{page+1}"))
+
+    markup = InlineKeyboardMarkup([buttons]) if buttons else None
+    return text, markup
+
+# ---------------- COMMAND: LIST TASKS ----------------
+@Client.on_message(filters.command("tasks"))
+async def list_tasks(client, message):
+    page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
+    text, markup = build_tasks_page(page)
+    await message.reply(text, reply_markup=markup)
+
+@Client.on_callback_query(filters.regex(r"^tasks_page:(\d+)$"))
+async def paginate_tasks(client, callback_query: CallbackQuery):
+    page = int(callback_query.data.split(":")[1])
+    text, markup = build_tasks_page(page)
+    await callback_query.message.edit_text(text, reply_markup=markup)
+    await callback_query.answer()  # remove loading animation
+
+# ---------------- COMMAND: REMOVE TASK ----------------
+
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_task_cmd(client, message):
-    if len(message.command) < 2:
-        return await message.reply("⚠️ Usage: `/remove <file_id>`")
+    """
+    Usage: /removetask <user_id> <file_id>
+    Example: /removetask 123456 5f1d2e3a
+    """
+    if len(message.command) < 3:
+        return await message.reply("⚠️ Usage: `/removetask <user_id> <file_id>`")
 
-    file_id = message.command[1]
-    user_id = message.from_user.id
+    user_id = int(message.command[1])
+    file_id = message.command[2]
 
     if remove_task_by_file_id(user_id, file_id):
-        await message.reply(f"✅ Task with file_id `{file_id}` removed.")
+        await message.reply(f"✅ Task `{file_id}` removed from user ID {user_id}.")
     else:
-        await message.reply("❌ No matching task found.")
-        
+        await message.reply(f"❌ No matching task found for user ID {user_id}.")
+
 @Client.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
     user_id = message.from_user.id
