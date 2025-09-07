@@ -96,6 +96,15 @@ def save_file(user_id, file_name, file_id):
         upsert=True
     )
 
+def get_saved_file(user_id, filename):
+    user_data = files_col.find_one({"_id": user_id})
+    if not user_data:
+        return None
+    for file in user_data.get("files", []):
+        if file["name"] == filename:
+            return file["file_id"]   # ✅ return file_id, not file_path
+    return None
+    
 def get_user_files(user_id):
     data = files_col.find_one({"_id": user_id})
     return data.get("files", []) if data else []
