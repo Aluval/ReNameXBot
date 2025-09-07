@@ -370,6 +370,10 @@ async def rename_file(client, message: Message):
 
         if file_id:
             save_file(user_id, new_name, file_id)
+            add_task(user_id, {"filename": new_name, "file_id": file_id})
+
+        
+    
 
         # Optional screenshot for videos
         if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
@@ -490,40 +494,32 @@ async def get_file(client, message: Message):
     )
     
 # ---------------- TASKS ----------------
-
-
 def build_tasks_page(page: int = 1, per_page: int = 10):
-    """Build paginated task list for display."""
-    all_tasks_data = get_all_user_tasks()  # Fetch all users
+    all_tasks_data = get_all_user_tasks()
     all_tasks = []
 
     for entry in all_tasks_data:
-        uname = f"@{entry.get('username', 'Unknown')}"
+        uid = entry.get('_id', 'Unknown')
         for task in entry.get("tasks", []):
-            all_tasks.append((uname, task))
+            all_tasks.append((uid, task))
 
     total_tasks = len(all_tasks)
     if total_tasks == 0:
-        return "❗ No tasks found for any users.", None
+        return "❗ No tasks found.", None
 
     total_pages = math.ceil(total_tasks / per_page)
-    page = max(1, min(page, total_pages))  # Ensure page in bounds
+    page = max(1, min(page, total_pages))
 
     start = (page - 1) * per_page
     end = start + per_page
     paged_tasks = all_tasks[start:end]
 
     text = f"📋 **All Tasks (Page {page}/{total_pages}):**\n\n"
-    for i, (uname, task) in enumerate(paged_tasks, start=start + 1):
-        if isinstance(task, dict):
-            filename = task.get("filename", "Unknown")
-            file_id = task.get("file_id", "N/A")
-        else:
-            filename = str(task)
-            file_id = "N/A"
-        text += f"{i}. {uname}\n   📂 `{filename}`\n   🆔 `{file_id}`\n\n"
+    for i, (uid, task) in enumerate(paged_tasks, start=start + 1):
+        filename = task.get("filename", "Unknown") if isinstance(task, dict) else str(task)
+        file_id = task.get("file_id", "N/A") if isinstance(task, dict) else "N/A"
+        text += f"{i}. UserID: `{uid}`\n   📂 `{filename}`\n   🆔 `{file_id}`\n\n"
 
-    # Pagination buttons
     buttons = []
     if page > 1:
         buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
@@ -533,39 +529,40 @@ def build_tasks_page(page: int = 1, per_page: int = 10):
     markup = InlineKeyboardMarkup([buttons]) if buttons else None
     return text, markup
 
-# ---------------- COMMAND: LIST TASKS ----------------
+# Command
 @Client.on_message(filters.command("tasks"))
 async def list_tasks(client, message):
     page = int(message.command[1]) if len(message.command) > 1 and message.command[1].isdigit() else 1
     text, markup = build_tasks_page(page)
     await message.reply(text, reply_markup=markup)
 
+# Callback query for pagination
 @Client.on_callback_query(filters.regex(r"^tasks_page:(\d+)$"))
-async def paginate_tasks(client, callback_query: CallbackQuery):
+async def paginate_tasks(client, callback_query):
     page = int(callback_query.data.split(":")[1])
     text, markup = build_tasks_page(page)
     await callback_query.message.edit_text(text, reply_markup=markup)
-    await callback_query.answer()  # removes loading animation
+    await callback_query.answer()
+
+
 
 # ---------------- COMMAND: REMOVE TASK ----------------
-
 @Client.on_message(filters.command("removetask") & filters.user(ADMIN))
 async def remove_task_cmd(client, message):
     """
-    Usage: /removetask <user_id> <file_id>
-    Example: /removetask 123456 5f1d2e3a
+    Usage: /removetask <user_id> <file_id|filename>
     """
     if len(message.command) < 3:
-        return await message.reply("⚠️ Usage: `/removetask <user_id> <file_id>`")
+        return await message.reply("⚠️ Usage: `/removetask <user_id> <file_id|filename>`")
 
     user_id = int(message.command[1])
-    file_id = message.command[2]
+    identifier = message.text.split(None, 2)[2]  # file_id or filename
 
-    if remove_task_by_file_id(user_id, file_id):
-        await message.reply(f"✅ Task `{file_id}` removed from user ID {user_id}.")
+    if remove_task(user_id, identifier):
+        await message.reply(f"✅ Task `{identifier}` removed from user ID {user_id}.")
     else:
         await message.reply(f"❌ No matching task found for user ID {user_id}.")
-        
+
 @Client.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
     user_id = message.from_user.id
@@ -837,6 +834,7 @@ async def rename_link(client, message: Message):
 
         if file_id:
             save_file(user_id, new_name, file_id)
+            add_task(user_id, {"filename": new_name, "file_id": file_id})
 
         # Cleanup thumbnail
         if thumb_path and os.path.exists(thumb_path):
