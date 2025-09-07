@@ -71,18 +71,19 @@ def add_task(user_id, task, username=None):
         update_data["$set"] = {"username": username}
     tasks_col.update_one({"_id": user_id}, update_data, upsert=True)
 
-def remove_task_and_file_by_id(user_id: int, file_id: str) -> bool:
-    # Remove from tasks collection
-    tasks_col.update_one(
-        {"_id": user_id},
-        {"$pull": {"tasks": {"file_id": file_id}}}
-    )
 
-    # Remove from files collection
-    result = files_col.update_one(
-        {"_id": user_id},
-        {"$pull": {"files": {"file_id": file_id}}}
-    )
+def remove_task_by_file_id(user_id, file_id):
+    user = tasks_col.find_one({"_id": user_id})
+    if not user:
+        return False
+
+    tasks = user.get("tasks", [])
+    new_tasks = [task for task in tasks if task.get("file_id") != file_id]
+
+    if len(new_tasks) != len(tasks):
+        tasks_col.update_one({"_id": user_id}, {"$set": {"tasks": new_tasks}})
+        return True
+    return False
 
     # Return True if file entry was removed
     return result.modified_count > 0
