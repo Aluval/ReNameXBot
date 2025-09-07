@@ -77,7 +77,19 @@ Press Below Button to Deploy!
 
 ### Commands (Core)
 
-/start         - Bot alive check & welcome /settings      - Open settings panel (screenshot, count, prefix, type, thumb, caption) /rename        - Reply to a file + /rename <new_name> to rename & re-upload /renamelink — Rename and re-upload directly from supported links /tasks [page]  - List all tasks (admin view available) |getfile       - /getfile <filename> (ownerfile) (or /getfile <user_id> <filename>(othersfile) to download stored files /removetask    - /removetask <user_id> <file.id> (Admin only) /setprefix     - /setprefix <text> to set prefix /setcaption    - /setcaption <text> to set custom caption /clear         - Clear database (Admin only) help           - Get help & usage info about          - Learn about the bot ping           - Check bot latency / status
+start - Bot alive check & welcome 
+settings - Open settings panel (screenshot, count, prefix, type, thumb, caption) 
+rename - Reply to a file + /rename <new_name> to rename & re-upload
+renamelink - Rename and re-upload directly from supported links 
+tasks - List all tasks Pages (admin view available) 
+getfile - /getfile <filename> (ownerfile) (or /getfile <user_id> <filename>(othersfile) to download stored files removetask - /removetask <user_id> <file.id> (Admin only)
+setprefix - /setprefix <text> to set prefix 
+setcaption - /setcaption <text> to set custom caption 
+clear - Clear database (Admin only) 
+help - Get help
+about - Learn about the bot 
+ping - Check bot latency 
+stats - Bot usage info 
 
 ---
 
@@ -90,10 +102,9 @@ Press Below Button to Deploy!
      ```
    - Bot will download, rename, and re-upload the file.
   
-2.**Renamelink with DirectLink**
-   
+2.**Renamelink with DirectLink** 
      ```
-      /renamelink <filename> <link>     
+     /renamelink <filename> <link>     
      ```
    - Rename and re-upload directly from supported links
      (Pixeldrain, FastCloud, Workers.dev, Googleusercontent, Cloudflare - Workers.dev, Seedr, Heroku(SomeLinks) etc.)
