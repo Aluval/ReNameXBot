@@ -606,7 +606,7 @@ async def get_file(client, message: Message):
 
     
 # ---------------- TASKS ----------------
-def build_tasks_page(page: int = 1, per_page: int = 10):
+def build_tasks_page(page: int = 1, per_page: int = 5):
     all_tasks_data = get_all_user_tasks()
     all_tasks = []
 
