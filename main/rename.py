@@ -195,88 +195,7 @@ async def settings_callback_handler(client, cb: CallbackQuery):
     await cb.message.edit_caption("⚙️ Customize your bot settings:", reply_markup=markup)
     await cb.answer()
 
-    
-
-
-
 """
-#ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-@Client.on_message(filters.command("rename"))
-async def rename_file(client, message: Message):
-    user_id = message.from_user.id
-    async with QUEUE:
-        settings = get_settings(user_id)
-        rename_type = settings.get("rename_type", "doc")
-        prefix_on = settings.get("prefix_enabled", True)
-        prefix_text = settings.get("prefix_text", "")
-        caption_custom = get_caption(user_id)
-
-        if len(message.command) >= 2:
-            new_name = message.text.split(None, 1)[1]
-        elif message.reply_to_message and message.reply_to_message.document:
-            return await message.reply("❗ Provide a new filename after /rename")
-        else:
-            return await message.reply("❗ Reply to a document or provide filename.")
-
-        if prefix_on:
-            new_name = f"{prefix_text} {new_name}"
-
-        add_task(user_id, new_name)
-
-        thumb_id = get_thumbnail(user_id)
-        thumb_path = None
-        if thumb_id:
-            try:
-                thumb_path = await client.download_media(thumb_id, file_name=f"thumb_{user_id}.jpg")
-            except:
-                thumb_path = None
-
-        task = {
-            "message": await message.reply("📥 Starting download..."),
-            "start_time": time.time(),
-            "action": "📥 Downloading"
-        }
-
-        file_path = await message.reply_to_message.download(
-            file_name=os.path.join(DOWNLOAD_DIR, new_name),
-            progress=progress_bar,
-            progress_args=(task,)
-        )
-        await task["message"].edit("✅ Download complete.")
-
-        caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
-        task = {
-            "message": await message.reply("📤 Starting upload..."),
-            "start_time": time.time(),
-            "action": "📤 Uploading"
-        }
-
-        try:
-            if rename_type == "video":
-                await message.reply_video(file_path, caption=caption, thumb=thumb_path,
-                                          progress=progress_bar, progress_args=(task,))
-            else:
-                await message.reply_document(file_path, caption=caption, thumb=thumb_path,
-                                             progress=progress_bar, progress_args=(task,))
-            await task["message"].edit("✅ Upload complete.")
-        except Exception as e:
-            await task["message"].edit(f"❌ Upload failed: {e}")
-            return
-
-        save_file(user_id, new_name, file_path)
-
-        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
-            ss_dir = f"ss_{user_id}"
-            os.makedirs(ss_dir, exist_ok=True)
-            for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
-                await message.reply_photo(ss)
-            cleanup(ss_dir)
-
-        if thumb_path and os.path.exists(thumb_path):
-            os.remove(thumb_path)
-"""
-
-
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
 @Client.on_message(filters.command("rename"))
 async def rename_file(client, message: Message):
@@ -369,6 +288,104 @@ async def rename_file(client, message: Message):
             os.remove(thumb_path)
         if os.path.exists(file_path):  # remove local copy
             os.remove(file_path)
+"""
+@Client.on_message(filters.command("rename"))
+async def rename_file(client, message: Message):
+    user_id = message.from_user.id
+    async with QUEUE:
+        settings = get_settings(user_id)
+        rename_type = settings.get("rename_type", "doc")
+        prefix_on = settings.get("prefix_enabled", True)
+        prefix_text = settings.get("prefix_text", "")
+        caption_custom = get_caption(user_id)
+
+        # Get new file name
+        if len(message.command) >= 2:
+            new_name = message.text.split(None, 1)[1]
+        elif message.reply_to_message and message.reply_to_message.document:
+            return await message.reply("❗ Provide a new filename after /rename")
+        else:
+            return await message.reply("❗ Reply to a document or provide filename.")
+
+        if prefix_on:
+            new_name = f"{prefix_text} {new_name}"
+
+        add_task(user_id, new_name)
+
+        # Handle thumbnail
+        thumb_id = get_thumbnail(user_id)
+        thumb_path = None
+        if thumb_id:
+            try:
+                thumb_path = await client.download_media(thumb_id, file_name=f"thumb_{user_id}.jpg")
+            except:
+                thumb_path = None
+
+        # Track task
+        task = {
+            "message": await message.reply("📥 Starting download..."),
+            "start_time": time.time(),
+            "action": "📥 Downloading"
+        }
+
+        # Download original file temporarily
+        file_path = await message.reply_to_message.download(
+            file_name=os.path.join(DOWNLOAD_DIR, new_name),
+            progress=progress_bar,
+            progress_args=(task,)
+        )
+        await task["message"].edit("✅ Download complete.")
+
+        caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
+
+        # Upload
+        task = {
+            "message": await message.reply("📤 Starting upload..."),
+            "start_time": time.time(),
+            "action": "📤 Uploading"
+        }
+
+        try:
+            if rename_type == "video":
+                sent_msg = await message.reply_video(
+                    file_path, caption=caption, thumb=thumb_path,
+                    progress=progress_bar, progress_args=(task,)
+                )
+            else:
+                sent_msg = await message.reply_document(
+                    file_path, caption=caption, thumb=thumb_path,
+                    progress=progress_bar, progress_args=(task,)
+                )
+            await task["message"].edit("✅ Upload complete.")
+        except Exception as e:
+            await task["message"].edit(f"❌ Upload failed: {e}")
+            return
+
+        # Save only file_id
+        file_id = None
+        if sent_msg.document:
+            file_id = sent_msg.document.file_id
+        elif sent_msg.video:
+            file_id = sent_msg.video.file_id
+
+        if file_id:
+            save_file(user_id, new_name, file_id)
+
+        # Optional screenshot for videos
+        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
+            ss_dir = f"ss_{user_id}"
+            os.makedirs(ss_dir, exist_ok=True)
+            for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
+                await message.reply_photo(ss)
+            cleanup(ss_dir)
+
+        # Cleanup local files
+        if thumb_path and os.path.exists(thumb_path):
+            os.remove(thumb_path)
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+
 
 import shutil, os
 
@@ -474,9 +491,10 @@ async def get_file(client, message: Message):
     
 # ---------------- TASKS ----------------
 
+
 def build_tasks_page(page: int = 1, per_page: int = 10):
     """Build paginated task list for display."""
-    all_tasks_data = get_all_user_tasks()
+    all_tasks_data = get_all_user_tasks()  # Fetch all users
     all_tasks = []
 
     for entry in all_tasks_data:
@@ -489,7 +507,7 @@ def build_tasks_page(page: int = 1, per_page: int = 10):
         return "❗ No tasks found for any users.", None
 
     total_pages = math.ceil(total_tasks / per_page)
-    page = max(1, min(page, total_pages))  # Ensure page is in bounds
+    page = max(1, min(page, total_pages))  # Ensure page in bounds
 
     start = (page - 1) * per_page
     end = start + per_page
@@ -505,6 +523,7 @@ def build_tasks_page(page: int = 1, per_page: int = 10):
             file_id = "N/A"
         text += f"{i}. {uname}\n   📂 `{filename}`\n   🆔 `{file_id}`\n\n"
 
+    # Pagination buttons
     buttons = []
     if page > 1:
         buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"tasks_page:{page-1}"))
@@ -526,7 +545,7 @@ async def paginate_tasks(client, callback_query: CallbackQuery):
     page = int(callback_query.data.split(":")[1])
     text, markup = build_tasks_page(page)
     await callback_query.message.edit_text(text, reply_markup=markup)
-    await callback_query.answer()  # remove loading animation
+    await callback_query.answer()  # removes loading animation
 
 # ---------------- COMMAND: REMOVE TASK ----------------
 
@@ -546,7 +565,7 @@ async def remove_task_cmd(client, message):
         await message.reply(f"✅ Task `{file_id}` removed from user ID {user_id}.")
     else:
         await message.reply(f"❌ No matching task found for user ID {user_id}.")
-
+        
 @Client.on_message(filters.photo & filters.private)
 async def save_thumb(client, message):
     user_id = message.from_user.id
@@ -583,124 +602,7 @@ async def clear_database_handler(client: Client, msg: Message):
         await msg.reply_text("Old database collections have been cleared ✅.")
     except Exception as e:
         await msg.reply_text(f"An error occurred: {e}")
-"""
- #renamelink
-import aiohttp
-import urllib.parse
-import re
-import os
-import time
-from pyrogram import Client, filters
-from pyrogram.types import Message
 
-MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
-
-
-@Client.on_message(filters.command("renamelink"))
-async def rename_link(client, message: Message):
-    user_id = message.from_user.id
-    async with QUEUE:
-        settings = get_settings(user_id)
-        rename_type = settings.get("rename_type", "doc")
-        prefix_on = settings.get("prefix_enabled", True)
-        prefix_text = settings.get("prefix_text", "")
-        caption_custom = get_caption(user_id)
-
-        if len(message.command) < 3:
-            return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
-
-        # Extract the URL from the message text
-        match = re.search(r'(https?://\S+)', message.text)
-        if not match:
-            return await message.reply("❌ No valid URL found.")
-
-        link = match.group(1).strip()
-
-        # The new name is whatever is left after removing the command and the URL
-        new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
-
-        # Fix link by encoding spaces and special characters
-        link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
-
-        # Validate link
-        if not ("seedr.cc" in link or "workers.dev" in link):
-            return await message.reply("❌ Link must be Seedr or Workers link.")
-
-        # Check file size
-        async with aiohttp.ClientSession() as session:
-            async with session.head(link) as resp:
-                size = int(resp.headers.get("Content-Length", 0))
-                if size == 0:
-                    return await message.reply("❌ Could not determine file size.")
-                if size > MAX_SIZE:
-                    return await message.reply("❌ File is larger than 2GB. Not allowed.")
-
-        if prefix_on:
-            new_name = f"{prefix_text} {new_name}"
-
-        add_task(user_id, new_name)
-
-        thumb_id = get_thumbnail(user_id)
-        thumb_path = None
-        if thumb_id:
-            try:
-                thumb_path = await client.download_media(thumb_id, file_name=f"thumb_{user_id}.jpg")
-            except:
-                thumb_path = None
-
-        # Download file
-        task = {
-            "message": await message.reply("📥 Starting download..."),
-            "start_time": time.time(),
-            "action": "📥 Downloading"
-        }
-
-        file_path = os.path.join(DOWNLOAD_DIR, new_name)
-        async with aiohttp.ClientSession() as session:
-            async with session.get(link) as resp:
-                total_size = int(resp.headers.get("Content-Length", 0))
-                downloaded = 0
-                with open(file_path, "wb") as f:
-                    async for chunk in resp.content.iter_chunked(1024 * 1024):
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        progress_bar(downloaded, total_size, task)
-        await task["message"].edit("✅ Download complete.")
-
-        # Caption
-        caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
-
-        # Upload
-        task = {
-            "message": await message.reply("📤 Starting upload..."),
-            "start_time": time.time(),
-            "action": "📤 Uploading"
-        }
-        try:
-            if rename_type == "video":
-                await message.reply_video(file_path, caption=caption, thumb=thumb_path,
-                                          progress=progress_bar, progress_args=(task,))
-            else:
-                await message.reply_document(file_path, caption=caption, thumb=thumb_path,
-                                             progress=progress_bar, progress_args=(task,))
-            await task["message"].edit("✅ Upload complete.")
-        except Exception as e:
-            await task["message"].edit(f"❌ Upload failed: {e}")
-            return
-
-        save_file(user_id, new_name, file_path)
-
-        # Screenshots for videos
-        if settings.get("screenshot") and new_name.lower().endswith((".mp4", ".mkv", ".mov")):
-            ss_dir = f"ss_{user_id}"
-            os.makedirs(ss_dir, exist_ok=True)
-            for ss in take_screenshots(file_path, ss_dir, settings.get("count", 3)):
-                await message.reply_photo(ss)
-            cleanup(ss_dir)
-
-        if thumb_path and os.path.exists(thumb_path):
-            os.remove(thumb_path)
-"""
 
 import aiohttp
 import urllib.parse
@@ -712,7 +614,7 @@ from pyrogram.types import Message
 
 MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
 
-
+"""
 @Client.on_message(filters.command("renamelink"))
 async def rename_link(client, message: Message):
     user_id = message.from_user.id
@@ -819,6 +721,119 @@ async def rename_link(client, message: Message):
             file_id = sent_msg.video.file_id
         else:
             file_id = None
+
+        if file_id:
+            save_file(user_id, new_name, file_id)
+
+        # Cleanup thumbnail
+        if thumb_path and os.path.exists(thumb_path):
+            os.remove(thumb_path)
+"""
+@Client.on_message(filters.command("renamelink"))
+async def rename_link(client, message: Message):
+    user_id = message.from_user.id
+    async with QUEUE:
+        settings = get_settings(user_id)
+        rename_type = settings.get("rename_type", "doc")
+        prefix_on = settings.get("prefix_enabled", True)
+        prefix_text = settings.get("prefix_text", "")
+        caption_custom = get_caption(user_id)
+
+        # Validate command usage
+        if len(message.command) < 3:
+            return await message.reply("❗ Usage: `/renamelink <newname> <link>`")
+
+        # Extract the URL
+        match = re.search(r'(https?://\S+)', message.text)
+        if not match:
+            return await message.reply("❌ No valid URL found.")
+        link = match.group(1).strip()
+
+        # Get new name from command
+        new_name = message.text.replace(f"/renamelink", "").replace(link, "").strip()
+        if prefix_on:
+            new_name = f"{prefix_text} {new_name}"
+
+        # Validate allowed domains
+        if not any(domain in link for domain in ["seedr.cc", "workers.dev", "herokuapp.com"]):
+            return await message.reply("❌ Link must be Seedr, Workers, or Heroku link.")
+
+        # URL encode
+        link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
+
+        # Check file size via HEAD
+        async with aiohttp.ClientSession() as session:
+            async with session.head(link) as resp:
+                size = int(resp.headers.get("Content-Length", 0))
+                if size == 0:
+                    return await message.reply("❌ Could not determine file size.")
+                if size > MAX_SIZE:
+                    return await message.reply("❌ File is larger than 2GB. Not allowed.")
+
+        add_task(user_id, new_name)
+
+        # Thumbnail
+        thumb_id = get_thumbnail(user_id)
+        thumb_path = None
+        if thumb_id:
+            try:
+                thumb_path = await client.download_media(thumb_id, file_name=f"thumb_{user_id}.jpg")
+            except:
+                thumb_path = None
+
+        # Download into memory buffer
+        task = {
+            "message": await message.reply("📥 Starting download..."),
+            "start_time": time.time(),
+            "action": "📥 Downloading"
+        }
+
+        buffer = io.BytesIO()
+        async with aiohttp.ClientSession() as session:
+            async with session.get(link) as resp:
+                total_size = int(resp.headers.get("Content-Length", 0))
+                downloaded = 0
+                async for chunk in resp.content.iter_chunked(1024 * 1024):
+                    buffer.write(chunk)
+                    downloaded += len(chunk)
+                    progress_bar(downloaded, total_size, task)
+
+        buffer.name = new_name  # Telegram needs filename
+        buffer.seek(0)
+        await task["message"].edit("✅ Download complete.")
+
+        # Caption
+        caption = caption_custom.replace("{filename}", new_name) if caption_custom else f"📁 `{new_name}`"
+
+        # Upload
+        task = {
+            "message": await message.reply("📤 Starting upload..."),
+            "start_time": time.time(),
+            "action": "📤 Uploading"
+        }
+
+        try:
+            if rename_type == "video":
+                sent_msg = await message.reply_video(
+                    buffer, caption=caption, thumb=thumb_path,
+                    progress=progress_bar, progress_args=(task,)
+                )
+            else:
+                sent_msg = await message.reply_document(
+                    buffer, caption=caption, thumb=thumb_path,
+                    progress=progress_bar, progress_args=(task,)
+                )
+            await task["message"].edit("✅ Upload complete.")
+        except Exception as e:
+            await task["message"].edit(f"❌ Upload failed: {e}")
+            return
+
+        # Save file_id in DB
+        file_id = None
+        if sent_msg.document:
+            file_id = sent_msg.document.file_id
+        elif sent_msg.video:
+            file_id = sent_msg.video.file_id
 
         if file_id:
             save_file(user_id, new_name, file_id)
