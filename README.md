@@ -131,7 +131,7 @@ The bot stores user data in MongoDB. Typical collections:
 - `thumbnails` — saved thumbnail file_ids
 - `captions` — custom captions
 - `tasks` — user tasks (rename/upload tracking) - /removetask <user.id> <file.id>
-- `user_files` — stored file metadata `{ user_id, name, path }`
+- `user_files` — stored file metadata `{ user_id, name, fileid }`
 
 ---
 
