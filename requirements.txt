@@ -1,4 +1,6 @@
-pyrogram 
-tgcrypto 
+pyrogram
+tgcrypto
 pymongo
 ffmpeg
+psutil
+aiohttp
