@@ -454,7 +454,8 @@ async def rename_link(client, message: Message):
         safe_link = urllib.parse.quote(link, safe=":/?&=%@[]+!$&'()*+,;")
 
         # Check size
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=None, sock_connect=60, sock_read=600)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.head(safe_link) as resp:
                 size = int(resp.headers.get("Content-Length", 0))
                 if size == 0:
@@ -481,14 +482,23 @@ async def rename_link(client, message: Message):
         file_path = os.path.join(DOWNLOAD_DIR, new_name)
         downloaded = 0
         total_size = 0
-        async with aiohttp.ClientSession() as session:
-            async with session.get(safe_link) as resp:
-                total_size = int(resp.headers.get("Content-Length", 0))
-                with open(file_path, "wb") as f:
-                    async for chunk in resp.content.iter_chunked(1024 * 1024):
-                        f.write(chunk)
-                        downloaded += len(chunk)
-                        progress_bar(downloaded, total_size, task)
+
+        # Retry download up to 3 times if timeout happens
+        for attempt in range(3):
+            try:
+                async with aiohttp.ClientSession(timeout=timeout) as session:
+                    async with session.get(safe_link) as resp:
+                        total_size = int(resp.headers.get("Content-Length", 0))
+                        with open(file_path, "wb") as f:
+                            async for chunk in resp.content.iter_chunked(1024 * 1024):
+                                f.write(chunk)
+                                downloaded += len(chunk)
+                                progress_bar(downloaded, total_size, task)
+                break  # ✅ success, exit retry loop
+            except asyncio.TimeoutError:
+                if attempt == 2:  # last retry failed
+                    return await task["message"].edit("❌ Download failed: Timeout. Try again later.")
+                await task["message"].edit(f"⚠️ Timeout, retrying... ({attempt+1}/3)")
 
         await task["message"].edit("✅ Download complete.")
 
@@ -541,7 +551,6 @@ async def rename_link(client, message: Message):
             os.remove(thumb_path)
         if os.path.exists(file_path):
             os.remove(file_path)
-            
             
 
 import shutil, os
