@@ -7,6 +7,8 @@ id_pattern = re.compile(r'^.\d+$')
 
 QUEUE = asyncio.Semaphore(4)
 
+MAX_SIZE = 2 * 1024 * 1024 * 1024  # 2 GB
+
 DOWNLOAD_DIR = "downloads"
 os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
