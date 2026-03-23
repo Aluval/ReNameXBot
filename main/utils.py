@@ -4,22 +4,24 @@ from typing import Dict, List
 from pathlib import Path
 import subprocess
 
+import asyncio
+
 def progress_bar(current: int, total: int, task: Dict):
     now = time.time()
 
-    # Limit update frequency to avoid Telegram FloodWait
+    # Limit update frequency
     if "last_edit" in task and now - task["last_edit"] < 2:
         return
 
     task["last_edit"] = now
     diff = now - task["start_time"]
-    diff = diff if diff != 0 else 1  # Avoid div by zero
+    diff = diff if diff != 0 else 1
 
     speed = current / diff
     eta = (total - current) / speed if speed else 0
     percent = current * 100 / total
 
-    # Convert sizes to readable MB/GB
+    # Human readable size
     def human_readable(size):
         if size > 1024 * 1024 * 1024:
             return f"{size / (1024 * 1024 * 1024):.2f} GB"
@@ -29,12 +31,11 @@ def progress_bar(current: int, total: int, task: Dict):
     current_str = human_readable(current)
     total_str = human_readable(total)
 
-    # Visual progress bar
+    # Progress bar
     bar_length = 20
     filled_len = int(bar_length * current / total)
     bar = "█" * filled_len + "░" * (bar_length - filled_len)
 
-    # Construct the final message
     msg = (
         f"{task['action']}... [{bar}] {percent:.0f}%\n"
         f"Size: {current_str} / {total_str}\n"
@@ -43,7 +44,7 @@ def progress_bar(current: int, total: int, task: Dict):
     )
 
     try:
-        task["message"].edit(msg)
+        asyncio.create_task(task["message"].edit(msg))  # ✅ FIX
     except:
         pass
 
