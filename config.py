@@ -14,10 +14,10 @@ os.makedirs(DOWNLOAD_DIR, exist_ok=True)
 
 API_ID = os.environ.get("API_ID", "10811400")
 API_HASH = os.environ.get("API_HASH", "191bf5ae7a6c39771e7b13cf4ffd1279")
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "7447254913:AAFCl91I4tsSVAEs_5wNl0qzQXeq3gdZxRA")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "7447254913:AAES8dDG6NfQxoOtTsd4wIm4tIs5MkMaPLM")
 ADMIN = int(os.environ.get("ADMIN", '6469754522'))
 #ALL FILES UPLOADED - CREDITS 🌟 - @Sunrises_24
-MONGO_URL = "mongodb+srv://HARSHA24:HARSHA24@cluster0.sxaj8up.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URL = "mongodb+srv://INFINITYRENAME24BOT:INFINITYRENAME24BOT@cluster0.5vkpq73.mongodb.net/?appName=Cluster0"
 SUNRISES_PIC= "https://envs.sh/eer.jpg" # Replace with your Telegraph link - Start Pic
 INFO_PIC= "https://envs.sh/ees.jpg" # Replace with your Telegraph link - Information 
 UPDATES_CHANNEL = os.getenv("UPDATES_CHANNEL", "https://t.me/Sunrises24BotUpdates") # Replace with your Updates link
